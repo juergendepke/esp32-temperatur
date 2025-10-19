@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Temperatur</title>
+    
+    <!-- PWA Einstellungen -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.json">
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            margin: 0;
+            padding: 20px;
+            color: white;
+            min-height: 100vh;
+            text-align: center;
+        }
+        .container {
+            margin-top: 50px;
+        }
+        .temperature {
+            font-size: 80px;
+            margin: 30px 0;
+        }
+        button {
+            background: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 18px;
+            margin: 10px;
+            cursor: pointer;
+        }
+        .status {
+            margin: 20px;
+            padding: 10px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌡️ ESP32 Temperatur</h1>
+        
+        <div class="status" id="status">Nicht verbunden</div>
+        
+        <div class="temperature">
+            <span id="temperature">--</span>°C
+        </div>
+        
+        <button id="connectBtn">VERBINDEN</button>
+        <button id="disconnectBtn" style="display:none;">TRENNEN</button>
+        
+        <div style="margin-top: 50px; font-size: 14px;">
+            Tippe Share → "Zum Home-Bildschirm" um App zu installieren!
+        </div>
+    </div>
+
+    <script>
+        // Bluetooth UUIDs (müssen mit ESP32 übereinstimmen!)
+        const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+        const CHARACTERISTIC_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+        
+        let bluetoothDevice = null;
+        
+        document.getElementById('connectBtn').onclick = async function() {
+            try {
+                updateStatus('Suche ESP32...');
+                
+                // Bluetooth Verbindung
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'ESP32-Temperatur' }],
+                    optionalServices: [SERVICE_UUID]
+                });
+                
+                updateStatus('Verbinde...');
+                const server = await bluetoothDevice.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+                
+                // Daten empfangen
+                await characteristic.startNotifications();
+                characteristic.addEventListener('characteristicvaluechanged', event => {
+                    const value = event.target.value;
+                    const text = new TextDecoder().decode(value);
+                    document.getElementById('temperature').textContent = parseFloat(text).toFixed(1);
+                    updateStatus('Verbunden - Daten empfangen');
+                });
+                
+                // Buttons umschalten
+                document.getElementById('connectBtn').style.display = 'none';
+                document.getElementById('disconnectBtn').style.display = 'inline-block';
+                
+            } catch(error) {
+                updateStatus('Fehler: ' + error.message);
+            }
+        };
+        
+        document.getElementById('disconnectBtn').onclick = function() {
+            if(bluetoothDevice) bluetoothDevice.gatt.disconnect();
+            document.getElementById('connectBtn').style.display = 'inline-block';
+            document.getElementById('disconnectBtn').style.display = 'none';
+            updateStatus('Getrennt');
+            document.getElementById('temperature').textContent = '--';
+        };
+        
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+        
+        // PWA Service Worker
+        if('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
+    </script>
+</body>
+</html>
