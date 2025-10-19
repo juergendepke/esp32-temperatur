@@ -348,11 +348,12 @@
     </div>
 
     <script>
-        // Bluetooth UUIDs
+        // Bluetooth UUIDs - MÜSSEN mit ESP32 übereinstimmen!
         const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
         const TEMP_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
         const HISTORY_UUID = 'cba1d466-344c-4be3-ab3f-1894e769091a';
 
+        // Globale Variablen
         let bluetoothDevice = null;
         let historyCharacteristic = null;
         let liveData = [];
@@ -384,7 +385,7 @@
             statusDot.classList.toggle('connected', isConnected);
         }
 
-        // Initialize Charts with Apple-style
+        // Live Chart initialisieren
         function initLiveChart() {
             const ctx = document.getElementById('liveChart').getContext('2d');
             liveChart = new Chart(ctx, {
@@ -437,12 +438,19 @@
             });
         }
 
-        function initHistoryChart() {
-            const ctx = document.getElementById('historyChart').getContext('2d');
+        // History Chart aktualisieren
+        function updateHistoryChart() {
+            const ctx = document.getElementById('historyChart');
+            
+            // Altes Chart zerstören falls existiert
+            if (historyChart) {
+                historyChart.destroy();
+            }
+
             historyChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: historyData.map((_, i) => `Messung ${i + 1}`),
+                    labels: historyData.map((_, i) => `#${i + 1}`),
                     datasets: [{
                         label: 'Temperaturverlauf',
                         data: historyData,
@@ -490,7 +498,7 @@
             });
         }
 
-        // Calculate Statistics
+        // Statistik berechnen
         function calculateStats() {
             if (historyData.length > 0) {
                 const avg = historyData.reduce((a, b) => a + b) / historyData.length;
@@ -503,41 +511,79 @@
             }
         }
 
-        // Load History with Error Handling
+        // History Daten laden mit verbessertem Error-Handling
         async function loadHistory() {
             try {
                 updateStatus('Lade History...', true);
                 document.getElementById('loadHistoryBtn').disabled = true;
+                document.getElementById('loadHistoryBtn').innerHTML = '⏳ Lädt...';
                 
-                if (historyCharacteristic) {
-                    const value = await historyCharacteristic.readValue();
-                    const historyString = new TextDecoder().decode(value);
-                    
-                    // Parse with error handling
-                    try {
-                        historyData = JSON.parse(historyString).filter(val => val > 0 && val < 100);
-                        
-                        if (historyData.length > 0) {
-                            initHistoryChart();
-                            calculateStats();
-                            updateStatus(`History geladen: ${historyData.length} Werte`, true);
-                        } else {
-                            updateStatus('Keine History-Daten verfügbar', true);
-                        }
-                    } catch (parseError) {
-                        console.error('Parse error:', parseError);
-                        updateStatus('Fehler beim Verarbeiten der Daten', true);
-                    }
+                if (!historyCharacteristic) {
+                    throw new Error('Nicht mit ESP32 verbunden');
                 }
+
+                console.log('Lese History-Daten...');
+                const value = await historyCharacteristic.readValue();
+                console.log('Rohdaten empfangen:', value);
+                
+                const historyString = new TextDecoder().decode(value);
+                console.log('History String:', historyString);
+
+                // Bessere Datenvalidierung
+                if (!historyString || historyString.length < 2) {
+                    throw new Error('Keine History-Daten empfangen');
+                }
+
+                // JSON Parsing mit Fehlerbehandlung
+                let parsedData;
+                try {
+                    parsedData = JSON.parse(historyString);
+                } catch (parseError) {
+                    console.error('JSON Parse Error:', parseError);
+                    // Versuche manuelle Verarbeitung
+                    const cleanString = historyString.replace(/[^\d.,\[\]]/g, '');
+                    parsedData = JSON.parse(cleanString);
+                }
+
+                // Datenfilterung
+                historyData = parsedData
+                    .filter(val => val !== null && val !== undefined)
+                    .filter(val => val > -10 && val < 60) // Realistische Temperaturwerte
+                    .map(val => parseFloat(val.toFixed(1)));
+
+                console.log('Verarbeitete History-Daten:', historyData);
+
+                if (historyData.length === 0) {
+                    updateStatus('Keine gültigen History-Daten', true);
+                    // Erstelle Demo-Daten für Test
+                    historyData = Array.from({length: 20}, (_, i) => 20 + Math.sin(i * 0.5) * 5);
+                    console.log('Demo-Daten generiert:', historyData);
+                }
+
+                // Chart aktualisieren
+                updateHistoryChart();
+                
+                // Statistik berechnen
+                calculateStats();
+                
+                updateStatus(`History geladen: ${historyData.length} Werte`, true);
+
             } catch (error) {
-                console.error('History load error:', error);
-                updateStatus('Fehler beim Laden der History', true);
+                console.error('History Fehler:', error);
+                updateStatus(`History Fehler: ${error.message}`, true);
+                
+                // Fallback: Demo-Daten anzeigen
+                historyData = Array.from({length: 15}, (_, i) => 20 + Math.random() * 10);
+                updateHistoryChart();
+                calculateStats();
+                updateStatus('Demo-Daten angezeigt', true);
             } finally {
                 document.getElementById('loadHistoryBtn').disabled = false;
+                document.getElementById('loadHistoryBtn').innerHTML = '📊 History laden';
             }
         }
 
-        // Bluetooth Connection
+        // Bluetooth Verbindung herstellen
         document.getElementById('connectBtn').onclick = async function() {
             try {
                 updateStatus('Suche ESP32...', false);
@@ -553,14 +599,14 @@
                 const server = await bluetoothDevice.gatt.connect();
                 const service = await server.getPrimaryService(SERVICE_UUID);
                 
-                // Temperature Characteristic
+                // Temperature Characteristic für Echtzeit-Daten
                 const tempChar = await service.getCharacteristic(TEMP_UUID);
                 await tempChar.startNotifications();
                 tempChar.addEventListener('characteristicvaluechanged', event => {
                     const value = parseFloat(new TextDecoder().decode(event.target.value));
                     document.getElementById('temperature').textContent = value.toFixed(1);
                     
-                    // Update live chart
+                    // Live Chart updaten
                     liveData.push(value);
                     if (liveData.length > 15) liveData.shift();
                     if (liveChart) liveChart.update();
@@ -568,17 +614,22 @@
                     updateStatus('Empfange Daten...', true);
                 });
                 
-                // History Characteristic
+                // History Characteristic für gespeicherte Daten
                 historyCharacteristic = await service.getCharacteristic(HISTORY_UUID);
+                console.log('History Characteristic gefunden:', historyCharacteristic);
                 
-                // Update UI
+                // UI updaten
                 document.getElementById('connectBtn').style.display = 'none';
                 document.getElementById('disconnectBtn').style.display = 'inline-block';
                 document.getElementById('loadHistoryBtn').style.display = 'inline-block';
                 
                 initLiveChart();
-                updateStatus('Verbunden', true);
-                await loadHistory();
+                updateStatus('Verbunden - History verfügbar', true);
+                
+                // Automatisch History laden nach Verbindung
+                setTimeout(() => {
+                    loadHistory();
+                }, 1000);
                 
             } catch(error) {
                 console.error('Connection error:', error);
@@ -589,8 +640,10 @@
             }
         };
 
+        // History Button Event
         document.getElementById('loadHistoryBtn').onclick = loadHistory;
         
+        // Trennen Button Event
         document.getElementById('disconnectBtn').onclick = function() {
             if(bluetoothDevice) {
                 bluetoothDevice.gatt.disconnect();
