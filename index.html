@@ -3,123 +3,344 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 Temperatur mit Grafik</title>
+    <title>Temperatur • ESP32</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            margin: 0;
-            padding: 20px;
-            color: white;
-            min-height: 100vh;
+        :root {
+            --primary: #007AFF;
+            --secondary: #5856D6;
+            --background: #000000;
+            --card-bg: rgba(28, 28, 30, 0.8);
+            --text-primary: #FFFFFF;
+            --text-secondary: #8E8E93;
+            --success: #34C759;
+            --warning: #FF9500;
+            --gradient: linear-gradient(135deg, #007AFF 0%, #5856D6 100%);
+            --blur: blur(20px);
         }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+        }
+
+        body {
+            background: var(--background);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
         .container {
             max-width: 800px;
             margin: 0 auto;
-        }
-        .card {
-            background: rgba(255,255,255,0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
             padding: 20px;
-            margin: 10px 0;
         }
-        .temperature {
-            font-size: 60px;
+
+        /* Header */
+        .header {
             text-align: center;
-            margin: 20px 0;
+            padding: 40px 20px 20px;
         }
-        button {
-            background: white;
+
+        .app-title {
+            font-size: 34px;
+            font-weight: 700;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .app-subtitle {
+            font-size: 17px;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: var(--blur);
+            border-radius: 20px;
+            padding: 24px;
+            margin: 16px 0;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* Connection Card */
+        .connection-card {
+            text-align: center;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            margin-bottom: 20px;
+            font-size: 15px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #FF3B30;
+            margin-right: 8px;
+            transition: background 0.3s ease;
+        }
+
+        .status-dot.connected {
+            background: var(--success);
+        }
+
+        /* Buttons */
+        .btn {
+            background: var(--primary);
             border: none;
-            padding: 12px 25px;
-            border-radius: 25px;
-            font-size: 16px;
-            margin: 5px;
+            padding: 14px 28px;
+            border-radius: 14px;
+            font-size: 17px;
+            font-weight: 600;
+            color: white;
             cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 4px;
         }
-        .tab-buttons {
+
+        .btn:hover {
+            background: #0056CC;
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* Temperature Display */
+        .temperature-display {
+            text-align: center;
+            padding: 30px 0;
+        }
+
+        .temperature-value {
+            font-size: 80px;
+            font-weight: 300;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1;
+        }
+
+        .temperature-unit {
+            font-size: 40px;
+            color: var(--text-secondary);
+            font-weight: 300;
+        }
+
+        /* Tabs */
+        .tab-nav {
             display: flex;
-            justify-content: center;
-            margin: 20px 0;
+            background: var(--card-bg);
+            backdrop-filter: var(--blur);
+            border-radius: 15px;
+            padding: 4px;
+            margin: 24px 0;
         }
-        .tab {
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn.active {
+            background: rgba(255,255,255,0.1);
+            color: var(--text-primary);
+        }
+
+        .tab-content {
             display: none;
         }
-        .tab.active {
+
+        .tab-content.active {
             display: block;
+            animation: fadeIn 0.3s ease;
         }
-        .stats {
-            display: flex;
-            justify-content: space-around;
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Charts */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 20px;
             text-align: center;
         }
+
         .stat-value {
-            font-size: 24px;
-            font-weight: bold;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* Loading Animation */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+            
+            .temperature-value {
+                font-size: 64px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1 style="text-align: center;">🌡️ ESP32 Temperatur</h1>
-        
-        <div class="card">
-            <div class="status" id="status" style="text-align: center; padding: 10px;">
-                Nicht verbunden
+        <!-- Header -->
+        <div class="header">
+            <h1 class="app-title">Temperatur</h1>
+            <p class="app-subtitle">ESP32 Sensor Monitoring</p>
+        </div>
+
+        <!-- Connection Card -->
+        <div class="card connection-card">
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Nicht verbunden</span>
             </div>
             
-            <div style="text-align: center;">
-                <button id="connectBtn">VERBINDEN</button>
-                <button id="disconnectBtn" style="display:none;">TRENNEN</button>
-                <button id="loadHistoryBtn" style="display:none;">📊 HISTORY LADEN</button>
+            <div>
+                <button class="btn" id="connectBtn">
+                    <span class="loading" id="connectLoading" style="display: none;"></span>
+                    Mit ESP32 verbinden
+                </button>
+                <button class="btn btn-secondary" id="disconnectBtn" style="display: none;">
+                    Trennen
+                </button>
+                <button class="btn btn-secondary" id="loadHistoryBtn" style="display: none;">
+                    📊 History laden
+                </button>
             </div>
         </div>
 
-        <div class="tab-buttons">
-            <button onclick="showTab('live')">LIVE</button>
-            <button onclick="showTab('history')">HISTORIE</button>
-            <button onclick="showTab('stats')">STATISTIK</button>
-        </div>
-
-        <!-- LIVE TAB -->
-        <div id="live" class="tab active">
-            <div class="card">
-                <div class="temperature">
-                    <span id="temperature">--</span>°C
-                </div>
-                <div style="text-align: center;">
-                    <canvas id="liveChart" width="400" height="200"></canvas>
+        <!-- Live Temperature Card -->
+        <div class="card">
+            <div class="temperature-display">
+                <div class="temperature-value">
+                    <span id="temperature">--</span><span class="temperature-unit">°C</span>
                 </div>
             </div>
         </div>
 
-        <!-- HISTORY TAB -->
-        <div id="history" class="tab">
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+            <button class="tab-btn active" onclick="showTab('live')">Live</button>
+            <button class="tab-btn" onclick="showTab('history')">Verlauf</button>
+            <button class="tab-btn" onclick="showTab('stats')">Statistik</button>
+        </div>
+
+        <!-- Live Tab -->
+        <div id="live" class="tab-content active">
             <div class="card">
-                <h3>Temperatur Verlauf</h3>
-                <canvas id="historyChart" width="400" height="250"></canvas>
+                <h3 style="margin-bottom: 20px; font-size: 22px;">Echtzeit Temperatur</h3>
+                <div class="chart-container">
+                    <canvas id="liveChart"></canvas>
+                </div>
             </div>
         </div>
 
-        <!-- STATS TAB -->
-        <div id="stats" class="tab">
+        <!-- History Tab -->
+        <div id="history" class="tab-content">
             <div class="card">
-                <h3>Statistik</h3>
-                <div class="stats">
-                    <div>
-                        <div class="stat-value" id="avgTemp">--</div>
-                        <div>Durchschnitt</div>
+                <h3 style="margin-bottom: 20px; font-size: 22px;">Temperatur Verlauf</h3>
+                <div class="chart-container">
+                    <canvas id="historyChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Tab -->
+        <div id="stats" class="tab-content">
+            <div class="card">
+                <h3 style="margin-bottom: 20px; font-size: 22px;">Statistik</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="avgTemp">--°C</div>
+                        <div class="stat-label">Durchschnitt</div>
                     </div>
-                    <div>
-                        <div class="stat-value" id="maxTemp">--</div>
-                        <div>Maximum</div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="maxTemp">--°C</div>
+                        <div class="stat-label">Maximum</div>
                     </div>
-                    <div>
-                        <div class="stat-value" id="minTemp">--</div>
-                        <div>Minimum</div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="minTemp">--°C</div>
+                        <div class="stat-label">Minimum</div>
                     </div>
                 </div>
             </div>
@@ -136,20 +357,34 @@
         let historyCharacteristic = null;
         let liveData = [];
         let historyData = [];
-        
-        // Charts
         let liveChart = null;
         let historyChart = null;
 
         // Tab Navigation
         function showTab(tabName) {
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
+            // Update buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+            
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
             });
             document.getElementById(tabName).classList.add('active');
         }
 
-        // Live Chart initialisieren
+        // Status Update
+        function updateStatus(message, isConnected = false) {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            
+            statusText.textContent = message;
+            statusDot.classList.toggle('connected', isConnected);
+        }
+
+        // Initialize Charts with Apple-style
         function initLiveChart() {
             const ctx = document.getElementById('liveChart').getContext('2d');
             liveChart = new Chart(ctx, {
@@ -157,64 +392,105 @@
                 data: {
                     labels: [],
                     datasets: [{
-                        label: 'Live Temperatur',
+                        label: 'Temperatur',
                         data: liveData,
-                        borderColor: '#00ff88',
-                        backgroundColor: 'rgba(0, 255, 136, 0.1)',
-                        tension: 0.4
+                        borderColor: '#007AFF',
+                        backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#007AFF',
+                        pointBorderColor: '#FFFFFF',
+                        pointBorderWidth: 2,
+                        pointRadius: 4
                     }]
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     plugins: {
                         legend: { display: false }
                     },
                     scales: {
                         y: {
-                            grid: { color: 'rgba(255,255,255,0.1)' },
-                            ticks: { color: 'white' }
+                            grid: { 
+                                color: 'rgba(255,255,255,0.1)',
+                                borderColor: 'rgba(255,255,255,0.1)'
+                            },
+                            ticks: { 
+                                color: 'rgba(255,255,255,0.7)',
+                                font: { size: 12 }
+                            }
                         },
                         x: {
-                            grid: { color: 'rgba(255,255,255,0.1)' },
-                            ticks: { color: 'white' }
+                            grid: { 
+                                color: 'rgba(255,255,255,0.1)',
+                                borderColor: 'rgba(255,255,255,0.1)'
+                            },
+                            ticks: { 
+                                color: 'rgba(255,255,255,0.7)',
+                                font: { size: 12 }
+                            }
                         }
                     }
                 }
             });
         }
 
-        // History Chart initialisieren
         function initHistoryChart() {
             const ctx = document.getElementById('historyChart').getContext('2d');
             historyChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: Array.from({length: historyData.length}, (_, i) => i + 1),
+                    labels: historyData.map((_, i) => `Messung ${i + 1}`),
                     datasets: [{
-                        label: 'Temperatur History',
+                        label: 'Temperaturverlauf',
                         data: historyData,
-                        borderColor: '#ff9966',
-                        backgroundColor: 'rgba(255, 153, 102, 0.1)',
-                        fill: true
+                        borderColor: '#5856D6',
+                        backgroundColor: 'rgba(88, 86, 214, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#5856D6',
+                        pointBorderColor: '#FFFFFF',
+                        pointBorderWidth: 2,
+                        pointRadius: 3
                     }]
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
                     scales: {
                         y: {
-                            grid: { color: 'rgba(255,255,255,0.1)' },
-                            ticks: { color: 'white' }
+                            grid: { 
+                                color: 'rgba(255,255,255,0.1)',
+                                borderColor: 'rgba(255,255,255,0.1)'
+                            },
+                            ticks: { 
+                                color: 'rgba(255,255,255,0.7)',
+                                font: { size: 12 }
+                            }
                         },
                         x: {
-                            grid: { color: 'rgba(255,255,255,0.1)' },
-                            ticks: { color: 'white' }
+                            grid: { 
+                                color: 'rgba(255,255,255,0.1)',
+                                borderColor: 'rgba(255,255,255,0.1)'
+                            },
+                            ticks: { 
+                                color: 'rgba(255,255,255,0.7)',
+                                font: { size: 12 },
+                                maxTicksLimit: 10
+                            }
                         }
                     }
                 }
             });
         }
 
-        // Statistik berechnen
+        // Calculate Statistics
         function calculateStats() {
             if (historyData.length > 0) {
                 const avg = historyData.reduce((a, b) => a + b) / historyData.length;
@@ -227,82 +503,104 @@
             }
         }
 
-        // History Daten laden
+        // Load History with Error Handling
         async function loadHistory() {
             try {
+                updateStatus('Lade History...', true);
+                document.getElementById('loadHistoryBtn').disabled = true;
+                
                 if (historyCharacteristic) {
                     const value = await historyCharacteristic.readValue();
                     const historyString = new TextDecoder().decode(value);
-                    historyData = JSON.parse(historyString).filter(val => val > 0);
                     
-                    initHistoryChart();
-                    calculateStats();
-                    updateStatus('History geladen: ' + historyData.length + ' Werte');
+                    // Parse with error handling
+                    try {
+                        historyData = JSON.parse(historyString).filter(val => val > 0 && val < 100);
+                        
+                        if (historyData.length > 0) {
+                            initHistoryChart();
+                            calculateStats();
+                            updateStatus(`History geladen: ${historyData.length} Werte`, true);
+                        } else {
+                            updateStatus('Keine History-Daten verfügbar', true);
+                        }
+                    } catch (parseError) {
+                        console.error('Parse error:', parseError);
+                        updateStatus('Fehler beim Verarbeiten der Daten', true);
+                    }
                 }
             } catch (error) {
-                updateStatus('Fehler beim Laden der History');
+                console.error('History load error:', error);
+                updateStatus('Fehler beim Laden der History', true);
+            } finally {
+                document.getElementById('loadHistoryBtn').disabled = false;
             }
         }
 
-        // Bluetooth Verbindung
+        // Bluetooth Connection
         document.getElementById('connectBtn').onclick = async function() {
             try {
-                updateStatus('Suche ESP32...');
+                updateStatus('Suche ESP32...', false);
+                document.getElementById('connectLoading').style.display = 'inline-block';
+                document.getElementById('connectBtn').disabled = true;
                 
                 bluetoothDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ name: 'ESP32-Temperatur' }],
                     optionalServices: [SERVICE_UUID]
                 });
                 
-                updateStatus('Verbinde...');
+                updateStatus('Verbinde...', false);
                 const server = await bluetoothDevice.gatt.connect();
                 const service = await server.getPrimaryService(SERVICE_UUID);
                 
-                // Temperatur Characteristic
+                // Temperature Characteristic
                 const tempChar = await service.getCharacteristic(TEMP_UUID);
                 await tempChar.startNotifications();
                 tempChar.addEventListener('characteristicvaluechanged', event => {
                     const value = parseFloat(new TextDecoder().decode(event.target.value));
                     document.getElementById('temperature').textContent = value.toFixed(1);
                     
-                    // Live Chart updaten
+                    // Update live chart
                     liveData.push(value);
-                    if (liveData.length > 20) liveData.shift();
+                    if (liveData.length > 15) liveData.shift();
                     if (liveChart) liveChart.update();
                     
-                    updateStatus('Verbunden - Daten empfangen');
+                    updateStatus('Empfange Daten...', true);
                 });
                 
                 // History Characteristic
                 historyCharacteristic = await service.getCharacteristic(HISTORY_UUID);
                 
-                // UI updaten
+                // Update UI
                 document.getElementById('connectBtn').style.display = 'none';
                 document.getElementById('disconnectBtn').style.display = 'inline-block';
                 document.getElementById('loadHistoryBtn').style.display = 'inline-block';
                 
                 initLiveChart();
-                updateStatus('Verbunden - Lade History...');
+                updateStatus('Verbunden', true);
                 await loadHistory();
                 
             } catch(error) {
-                updateStatus('Fehler: ' + error.message);
+                console.error('Connection error:', error);
+                updateStatus(`Fehler: ${error.message}`, false);
+            } finally {
+                document.getElementById('connectLoading').style.display = 'none';
+                document.getElementById('connectBtn').disabled = false;
             }
         };
 
         document.getElementById('loadHistoryBtn').onclick = loadHistory;
         
         document.getElementById('disconnectBtn').onclick = function() {
-            if(bluetoothDevice) bluetoothDevice.gatt.disconnect();
+            if(bluetoothDevice) {
+                bluetoothDevice.gatt.disconnect();
+            }
             document.getElementById('connectBtn').style.display = 'inline-block';
             document.getElementById('disconnectBtn').style.display = 'none';
             document.getElementById('loadHistoryBtn').style.display = 'none';
-            updateStatus('Getrennt');
+            updateStatus('Getrennt', false);
+            document.getElementById('temperature').textContent = '--';
         };
-
-        function updateStatus(message) {
-            document.getElementById('status').textContent = message;
-        }
 
         // PWA Service Worker
         if('serviceWorker' in navigator) {
