@@ -1,131 +1,282 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Outback Temperatur</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Outback Temp · ESP32C3</title>
 <link rel="manifest" href="manifest.json">
 <style>
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
-  text-align: center;
-  background: #f5f5f7;
-  color: #1c1c1e;
-  margin: 0;
-  padding: 2rem;
-}
-h1 {
-  font-size: 1.8rem;
-  margin-bottom: 1rem;
-}
-button {
-  background-color: #007aff;
-  color: white;
-  border: none;
-  border-radius: 12px;
-  padding: 12px 20px;
-  font-size: 1.1rem;
-  margin: 0.5rem;
-}
-input[type=number] {
-  border: 1px solid #ccc;
-  border-radius: 10px;
-  padding: 8px;
-  width: 80px;
-  font-size: 1rem;
-}
-#log {
-  margin-top: 20px;
-  font-size: 0.9rem;
-  max-height: 200px;
-  overflow-y: auto;
-  text-align: left;
-  background: white;
-  border-radius: 12px;
-  padding: 1rem;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
+  :root{
+    --bg: #f2f2f7;
+    --card: #fff;
+    --accent: #007aff;
+    --text: #1c1c1e;
+    --muted: #6e6e73;
+    --glass: rgba(255,255,255,0.6);
+    --radius: 16px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Segoe UI,Roboto,Helvetica,Arial;color:var(--text);-webkit-font-smoothing:antialiased}
+  .container{max-width:540px;margin:18px auto;padding:18px}
+  header{display:flex;gap:12px;align-items:center}
+  .logo{
+    width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,#ffffff,#e9eefb);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--accent);font-size:26px;box-shadow:0 8px 20px rgba(0,0,0,0.06)
+  }
+  h1{margin:0;font-size:20px}
+  p.lead{margin:4px 0 12px;color:var(--muted);font-size:13px}
+
+  .card{background:var(--card);border-radius:var(--radius);padding:16px;margin-top:14px;box-shadow:0 8px 24px rgba(12,12,14,0.04)}
+  .center{display:flex;align-items:center;justify-content:center;flex-direction:column}
+
+  .big-temp{font-size:56px;font-weight:600;margin:6px 0}
+  .status{font-size:13px;color:var(--muted);margin-top:6px}
+
+  .controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .btn{background:var(--accent);color:white;border:none;padding:12px 16px;border-radius:12px;font-size:16px;cursor:pointer;box-shadow:0 8px 18px rgba(0,122,255,0.12)}
+  .btn.secondary{background:transparent;color:var(--accent);border:1px solid #e6e6e9}
+  .small{font-size:13px;color:var(--muted)}
+
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}
+  input[type=range]{width:100%}
+  label.inline{display:flex;align-items:center;gap:10px}
+  .log{font-family:monospace;max-height:200px;overflow:auto;background:#fbfbff;padding:10px;border-radius:10px;border:1px solid #eee;margin-top:10px}
+  .field{display:flex;gap:8px}
+  .pill{background:#f7f7fa;border-radius:12px;padding:6px 10px;font-size:13px;color:var(--muted)}
+  footer{margin-top:16px;text-align:center;color:var(--muted);font-size:12px}
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#0b0b0d;--card:#0f0f11;--text:#fff;--muted:#a0a6ab}
+    .logo{background:linear-gradient(135deg,#0f1220,#10121a)}
+    .log{background:#0b0b0d}
+  }
 </style>
 </head>
 <body>
-<h1>🌡️ Outback Temperatur</h1>
-<button id="connectBtn">🔗 Verbinden</button>
-<p>Intervall: <input id="intervalInput" type="number" min="1" max="30" value="5"> s
-<button id="setIntervalBtn">Setzen</button></p>
-<h2 id="tempDisplay">--.- °C</h2>
+<div class="container">
+  <header>
+    <div class="logo">T</div>
+    <div>
+      <h1>Outback Temp</h1>
+      <p class="lead">ESP32-C3 • Offline-ready • BLE</p>
+    </div>
+  </header>
 
-<button id="exportBtn">📤 CSV exportieren</button>
-<div id="log"></div>
+  <section class="card center">
+    <div id="status" class="small">🔌 Getrennt</div>
+    <div class="big-temp" id="temp">--.-- °C</div>
+    <div class="status" id="last">—</div>
+
+    <div class="controls">
+      <button id="connectBtn" class="btn">🔗 Verbinden</button>
+      <button id="disconnectBtn" class="btn secondary">🔌 Trennen</button>
+      <button id="clearBtn" class="btn secondary">🗑️ Clear Daten</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="row">
+      <div>
+        <div class="small">Messintervall</div>
+        <div style="display:flex;gap:12px;align-items:center;margin-top:8px">
+          <input id="ival" type="range" min="1" max="30" value="2">
+          <div class="pill" id="ivalLabel">2 s</div>
+        </div>
+      </div>
+      <div style="min-width:120px;text-align:right">
+        <label class="inline small">Bildschirm an<br><input id="wake" type="checkbox"></label>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div><strong>Messdaten</strong><div class="small">Lokal gespeichert (localStorage)</div></div>
+      <div style="display:flex;gap:8px">
+        <button id="exportBtn" class="btn">CSV Export</button>
+      </div>
+    </div>
+
+    <div class="log" id="log"></div>
+  </section>
+
+  <footer>Hinweis: iPhone: Bluefy oder WebBLE verwenden, damit BLE funktioniert.</footer>
+</div>
 
 <script>
-let device, server, tempChar, intervalChar;
-let readings = [];
+/* Modern Web Bluetooth app logic (works in Bluefy / Chrome)
+   - connect to ESP32C3 (SERVICE_UUID)
+   - listen notifications from CHAR_TEMP_UUID (ASCII float)
+   - write interval to CHAR_INTERVAL_UUID (ASCII int 1..30)
+   - store records in localStorage, export CSV
+   - wake lock optional
+*/
 
-async function connectBLE() {
+const SERVICE_UUID = '12345678-1234-5678-1234-1234567890ab';
+const CHAR_TEMP_UUID = 'abcd1234-5678-90ab-cdef-1234567890ab';
+const CHAR_INTERVAL_UUID = 'feed0001-0000-1000-8000-00805f9b34fb';
+
+let device = null, server = null, tempChar = null, intervalChar = null;
+const STORAGE_KEY = 'outback_temp_records_v1';
+
+const el = id => document.getElementById(id);
+const logArea = el('log');
+const tempEl = el('temp');
+const statusEl = el('status');
+const lastEl = el('last');
+const ivalRange = el('ival');
+const ivalLabel = el('ivalLabel');
+const wakeChk = el('wake');
+
+function appendLog(text){
+  const ts = new Date().toLocaleString();
+  logArea.innerText = `${ts}  ${text}\n` + logArea.innerText;
+}
+
+function loadRecords(){ try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch(e){ return []; } }
+function saveRecords(arr){ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }
+function pushRecord(temp){
+  const recs = loadRecords();
+  recs.push({ ts: new Date().toISOString(), temp: String(temp) });
+  saveRecords(recs);
+  appendLog(`Saved ${temp} °C`);
+  renderRecords();
+}
+function renderRecords(){
+  const recs = loadRecords();
+  if(!recs.length){ logArea.innerText = 'Keine Datensätze'; return; }
+  logArea.innerText = recs.slice().reverse().map(r => `${new Date(r.ts).toLocaleString()}  ${r.temp} °C`).join('\n');
+}
+
+function updateIntervalLabel(v){ ivalLabel.textContent = v + ' s'; }
+ivalRange.addEventListener('input', e => updateIntervalLabel(e.target.value));
+ivalRange.addEventListener('change', async e => {
+  const s = parseInt(e.target.value);
+  updateIntervalLabel(s);
+  if(intervalChar){
+    try {
+      const enc = new TextEncoder();
+      await intervalChar.writeValue(enc.encode(String(s)));
+      appendLog('Intervall geschrieben: ' + s + ' s');
+    } catch(err){
+      appendLog('Intervall schreiben fehlgeschlagen: ' + err);
+    }
+  }
+});
+
+// Wake Lock
+let wakeLock = null;
+async function requestWakeLock(){
   try {
-    device = await navigator.bluetooth.requestDevice({
-      filters: [{ namePrefix: 'ESP32C3_TempSensor' }],
-      optionalServices: ['12345678-1234-5678-1234-56789abcdef0']
-    });
-    const server = await device.gatt.connect();
-    const service = await server.getPrimaryService('12345678-1234-5678-1234-56789abcdef0');
-    tempChar = await service.getCharacteristic('12345678-1234-5678-1234-56789abcdef1');
-    intervalChar = await service.getCharacteristic('12345678-1234-5678-1234-56789abcdef2');
-
-    tempChar.startNotifications();
-    tempChar.addEventListener('characteristicvaluechanged', handleTemperature);
-
-    log('✅ Verbunden.');
-    wakeLock();
-  } catch (error) {
-    log('Fehler: ' + error);
+    if('wakeLock' in navigator){
+      wakeLock = await navigator.wakeLock.request('screen');
+      appendLog('WakeLock aktiv');
+      wakeLock.addEventListener('release', () => appendLog('WakeLock released'));
+    } else {
+      appendLog('WakeLock API nicht verfügbar');
+    }
+  } catch(e){ appendLog('WakeLock Fehler: ' + e); }
+}
+function releaseWakeLock(){
+  if(wakeLock){
+    wakeLock.release();
+    wakeLock = null;
   }
 }
+wakeChk.addEventListener('change', e => {
+  if(e.target.checked) requestWakeLock(); else releaseWakeLock();
+});
 
-function handleTemperature(event) {
-  const decoder = new TextDecoder();
-  const value = decoder.decode(event.target.value);
-  const timestamp = new Date().toLocaleTimeString();
-  document.getElementById('tempDisplay').innerText = value + ' °C';
-  readings.push({ time: timestamp, temp: value });
-  log(`${timestamp}: ${value} °C`);
+// CSV export
+function recordsToCSV(recs){
+  let csv = 'timestamp,temperature\n';
+  recs.forEach(r => csv += `${r.ts},${r.temp}\n`);
+  return csv;
 }
-
-async function setIntervalBLE() {
-  const val = document.getElementById('intervalInput').value;
-  if (intervalChar) {
-    const encoder = new TextEncoder();
-    await intervalChar.writeValue(encoder.encode(val));
-    log(`⏱️ Intervall auf ${val}s gesetzt`);
-  }
-}
-
-function log(msg) {
-  const el = document.getElementById('log');
-  el.innerHTML += msg + '<br>';
-  el.scrollTop = el.scrollHeight;
-}
-
-async function exportCSV() {
-  let csv = "Zeit,Temperatur\n";
-  readings.forEach(r => csv += `${r.time},${r.temp}\n`);
-  const blob = new Blob([csv], { type: 'text/csv' });
+el('exportBtn').addEventListener('click', () => {
+  const recs = loadRecords();
+  if(!recs.length){ alert('Keine Daten zum Exportieren'); return; }
+  const csv = recordsToCSV(recs);
+  const blob = new Blob([csv], {type: 'text/csv'});
   const url = URL.createObjectURL(blob);
-  window.location.href = `mailto:?subject=Temperaturdaten&body=CSV%20angehängt.&attachment=${url}`;
-}
+  const a = document.createElement('a');
+  const fname = `outback_data_${new Date().toISOString().slice(0,19)}.csv`.replace(/:/g,'-');
+  a.href = url;
+  a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  appendLog('CSV erstellt: ' + fname);
+});
 
-async function wakeLock() {
+// Bluetooth
+async function connect() {
   try {
-    const lock = await navigator.wakeLock.request('screen');
-    log('📱 Bildschirm bleibt an');
-  } catch (err) {
-    log('WakeLock nicht unterstützt: ' + err);
+    if(!navigator.bluetooth){ alert('Web Bluetooth nicht verfügbar. Auf iPhone: Bluefy/WebBLE nutzen.'); return; }
+    appendLog('Gerät suchen...');
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ namePrefix: 'ESP32C3' }, { namePrefix: 'ESP32' }],
+      optionalServices: [SERVICE_UUID]
+    });
+    device.addEventListener('gattserverdisconnected', onDisconnected);
+    server = await device.gatt.connect();
+    appendLog('GATT verbunden');
+
+    const service = await server.getPrimaryService(SERVICE_UUID);
+    tempChar = await service.getCharacteristic(CHAR_TEMP_UUID);
+    intervalChar = await service.getCharacteristic(CHAR_INTERVAL_UUID);
+
+    await tempChar.startNotifications();
+    tempChar.addEventListener('characteristicvaluechanged', e => {
+      const val = new TextDecoder().decode(e.target.value);
+      const v = parseFloat(val);
+      if(!isNaN(v)){
+        tempEl.textContent = v.toFixed(2) + ' °C';
+        lastEl.textContent = new Date().toLocaleString();
+        pushRecord(v.toFixed(2));
+      } else {
+        appendLog('Ungültiger Temp-Wert: ' + val);
+      }
+    });
+
+    // read current interval from device
+    try {
+      const ivalRaw = await intervalChar.readValue();
+      const ivalTxt = new TextDecoder().decode(ivalRaw);
+      const s = parseInt(ivalTxt);
+      if(!isNaN(s)) { ivalRange.value = s; updateIntervalLabel(s); }
+      appendLog('Intervall gelesen: ' + ivalTxt);
+    } catch(e){ appendLog('Intervall lesen fehlgeschlagen'); }
+
+    statusEl.textContent = '🔋 Verbunden: ' + (device.name || device.id);
+    appendLog('Verbunden mit ' + (device.name || device.id));
+  } catch(err){
+    appendLog('Connect Fehler: ' + err);
+    console.error(err);
   }
 }
 
-document.getElementById('connectBtn').addEventListener('click', connectBLE);
-document.getElementById('setIntervalBtn').addEventListener('click', setIntervalBLE);
-document.getElementById('exportBtn').addEventListener('click', exportCSV);
+function onDisconnected(){
+  appendLog('Device getrennt');
+  statusEl.textContent = '🔌 Getrennt';
+}
+
+async function disconnect(){
+  if(device && device.gatt && device.gatt.connected){ device.gatt.disconnect(); appendLog('Getrennt'); }
+}
+
+el('connectBtn').addEventListener('click', connect);
+el('disconnectBtn').addEventListener('click', disconnect);
+el('clearBtn').addEventListener('click', () => {
+  localStorage.removeItem(STORAGE_KEY);
+  renderRecords();
+  appendLog('Lokal gespeicherte Daten gelöscht');
+});
+
+// init UI
+(function init(){
+  renderRecords();
+  updateIntervalLabel(ivalRange.value);
+})();
 </script>
 </body>
 </html>
