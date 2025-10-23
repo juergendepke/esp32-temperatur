@@ -5,7 +5,257 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Outback Temp · ESP32C3</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="styles.css">
+    <style>
+        :root {
+            --bg: #f2f2f7;
+            --card: #fff;
+            --accent: #007aff;
+            --text: #1c1c1e;
+            --muted: #6e6e73;
+            --success: #34c759;
+            --error: #ff3b30;
+            --radius: 16px;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            background: var(--bg);
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Segoe UI, Roboto, Helvetica, Arial;
+            color: var(--text);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 540px;
+            margin: 18px auto;
+            padding: 18px;
+        }
+
+        header {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .logo {
+            width: 64px;
+            height: 64px;
+            border-radius: var(--radius);
+            background: linear-gradient(135deg, #ffffff, #e9eefb);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: var(--accent);
+            font-size: 26px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .lead {
+            margin: 4px 0 12px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-top: 16px;
+            box-shadow: 0 8px 24px rgba(12, 12, 14, 0.04);
+        }
+
+        .center {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .big-temp {
+            font-size: 56px;
+            font-weight: 600;
+            margin: 6px 0;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .status {
+            font-size: 13px;
+            margin-top: 6px;
+        }
+
+        .status-connected { color: var(--success); }
+        .status-disconnected { color: var(--muted); }
+        .status-error { color: var(--error); }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+            justify-content: center;
+        }
+
+        .btn {
+            border: none;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 8px 18px rgba(0, 122, 255, 0.12);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--accent);
+            border: 1px solid #e6e6e9;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .browser-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
+        .browser-warning a {
+            color: #007aff;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .browser-warning a:hover {
+            text-decoration: underline;
+        }
+
+        .row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .slider-container {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            flex: 1;
+        }
+
+        .pill {
+            background: #f7f7fa;
+            border-radius: 12px;
+            padding: 6px 12px;
+            font-size: 13px;
+            color: var(--muted);
+            min-width: 50px;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .log {
+            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+            max-height: 200px;
+            overflow: auto;
+            background: #fbfbff;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid #eee;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        footer {
+            margin-top: 20px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0b0b0d;
+                --card: #0f0f11;
+                --text: #fff;
+                --muted: #a0a6ab;
+            }
+            
+            .logo {
+                background: linear-gradient(135deg, #0f1220, #10121a);
+            }
+            
+            .log {
+                background: #0b0b0d;
+                border-color: #333;
+            }
+            
+            .pill {
+                background: #1c1c1e;
+            }
+            
+            .btn-secondary {
+                border-color: #333;
+            }
+
+            .browser-warning {
+                background: #332701;
+                border-color: #665200;
+                color: #ffd351;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 12px;
+                margin: 8px auto;
+            }
+            
+            .card {
+                padding: 16px;
+            }
+            
+            .big-temp {
+                font-size: 48px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -17,8 +267,15 @@
             </div>
         </header>
 
+        <!-- Browser Warning -->
+        <div id="browserWarning" class="browser-warning" style="display: none;">
+            <strong>⚠️ Browser-Kompatibilität:</strong> Web Bluetooth funktioniert auf iOS nur in speziellen Browsern. 
+            Bitte <a href="https://apps.apple.com/de/app/bluefy-web-ble-browser/id1492822055" target="_blank">Bluefy</a> 
+            oder <a href="https://apps.apple.com/de/app/webble/id1193531073" target="_blank">WebBLE</a> installieren.
+        </div>
+
         <section class="card center">
-            <div id="status" class="small status-disconnected">🔌 Getrennt</div>
+            <div id="status" class="status status-disconnected">🔌 Getrennt</div>
             <div class="big-temp" id="temp">--.-- °C</div>
             <div class="status" id="lastUpdate">—</div>
 
@@ -31,15 +288,15 @@
 
         <section class="card">
             <div class="row">
-                <div class="control-group">
-                    <label class="small">Messintervall</label>
+                <div>
+                    <div class="small">Messintervall</div>
                     <div class="slider-container">
-                        <input id="intervalSlider" type="range" min="1" max="30" value="2" class="slider">
+                        <input id="intervalSlider" type="range" min="1" max="30" value="2">
                         <div class="pill" id="intervalLabel">2 s</div>
                     </div>
                 </div>
-                <div class="wake-lock-control">
-                    <label class="checkbox-label small">
+                <div style="min-width: 120px; text-align: right">
+                    <label class="small">
                         <input id="wakeLock" type="checkbox">
                         Bildschirm an
                     </label>
@@ -48,12 +305,12 @@
         </section>
 
         <section class="card">
-            <div class="data-header">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <div>
                     <strong>Messdaten</strong>
                     <div class="small">Lokal gespeichert (localStorage)</div>
                 </div>
-                <div class="data-actions">
+                <div style="display: flex; gap: 8px;">
                     <button id="exportBtn" class="btn btn-primary">CSV Export</button>
                 </div>
             </div>
@@ -62,12 +319,332 @@
 
         <footer>
             Hinweis: Für iOS Bluefy oder WebBLE verwenden.
-            <div class="connection-stats">
-                <span id="connectionStats">Datenpunkte: 0</span>
-            </div>
+            <div id="connectionStats" style="margin-top: 4px;">Datenpunkte: 0</div>
         </footer>
     </div>
 
-    <script type="module" src="app.js"></script>
+    <script>
+        // Configuration
+        const CONFIG = {
+            SERVICE_UUID: '12345678-1234-5678-1234-1234567890ab',
+            CHAR_TEMP_UUID: 'abcd1234-5678-90ab-cdef-1234567890ab',
+            CHAR_INTERVAL_UUID: 'feed0001-0000-1000-8000-00805f9b34fb',
+            STORAGE_KEY: 'outback_temp_records_v1'
+        };
+
+        // State
+        let device = null;
+        let tempChar = null;
+        let intervalChar = null;
+        let records = [];
+        let wakeLock = null;
+
+        // DOM Elements
+        const elements = {
+            status: document.getElementById('status'),
+            temp: document.getElementById('temp'),
+            lastUpdate: document.getElementById('lastUpdate'),
+            connectBtn: document.getElementById('connectBtn'),
+            disconnectBtn: document.getElementById('disconnectBtn'),
+            clearBtn: document.getElementById('clearBtn'),
+            intervalSlider: document.getElementById('intervalSlider'),
+            intervalLabel: document.getElementById('intervalLabel'),
+            wakeLock: document.getElementById('wakeLock'),
+            exportBtn: document.getElementById('exportBtn'),
+            dataLog: document.getElementById('dataLog'),
+            connectionStats: document.getElementById('connectionStats'),
+            browserWarning: document.getElementById('browserWarning')
+        };
+
+        // Initialize
+        function init() {
+            checkBrowserCompatibility();
+            loadRecords();
+            renderRecords();
+            updateStats();
+            bindEvents();
+            
+            elements.intervalLabel.textContent = elements.intervalSlider.value + ' s';
+            
+            log('App gestartet - Bereit für Verbindung');
+        }
+
+        // Browser compatibility check
+        function checkBrowserCompatibility() {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            const hasWebBluetooth = !!navigator.bluetooth;
+            
+            if ((isIOS && isSafari) || !hasWebBluetooth) {
+                elements.browserWarning.style.display = 'block';
+                elements.connectBtn.disabled = true;
+                log('Web Bluetooth nicht verfügbar. Bitte Bluefy/WebBLE verwenden.');
+            }
+        }
+
+        // Records management
+        function loadRecords() {
+            try {
+                records = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY)) || [];
+            } catch (e) {
+                records = [];
+                log('Fehler beim Laden der Daten: ' + e.message);
+            }
+        }
+
+        function saveRecords() {
+            try {
+                localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(records));
+            } catch (e) {
+                log('Fehler beim Speichern: ' + e.message);
+            }
+        }
+
+        function addRecord(temperature) {
+            const record = {
+                timestamp: new Date().toISOString(),
+                temperature: temperature
+            };
+            records.push(record);
+            saveRecords();
+            return record;
+        }
+
+        function clearRecords() {
+            records = [];
+            saveRecords();
+            renderRecords();
+            updateStats();
+        }
+
+        // UI Updates
+        function updateConnectionStatus(connected, deviceName = '') {
+            if (connected) {
+                elements.status.textContent = `🔋 Verbunden: ${deviceName}`;
+                elements.status.className = 'status status-connected';
+            } else {
+                elements.status.textContent = '🔌 Getrennt';
+                elements.status.className = 'status status-disconnected';
+            }
+        }
+
+        function updateTemperature(temperature) {
+            elements.temp.textContent = temperature + ' °C';
+            elements.lastUpdate.textContent = new Date().toLocaleString();
+        }
+
+        function log(message) {
+            const timestamp = new Date().toLocaleString();
+            elements.dataLog.innerHTML = `${timestamp}  ${message}<br>` + elements.dataLog.innerHTML;
+        }
+
+        function renderRecords() {
+            if (records.length === 0) {
+                elements.dataLog.innerHTML = 'Keine Datensätze';
+                return;
+            }
+
+            const html = records
+                .slice()
+                .reverse()
+                .map(record => 
+                    `${new Date(record.timestamp).toLocaleString()}  ${record.temperature} °C`
+                )
+                .join('<br>');
+            
+            elements.dataLog.innerHTML = html;
+        }
+
+        function updateStats() {
+            elements.connectionStats.textContent = `Datenpunkte: ${records.length}`;
+        }
+
+        // Bluetooth functions
+        async function connect() {
+            try {
+                log('Suche ESP32C3-Temp Gerät...');
+                
+                if (!navigator.bluetooth) {
+                    throw new Error('Web Bluetooth nicht verfügbar. Bitte Bluefy oder WebBLE App verwenden.');
+                }
+
+                elements.connectBtn.disabled = true;
+                elements.connectBtn.textContent = '🔍 Suche...';
+
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [
+                        { name: 'ESP32C3-Temp' },
+                        { namePrefix: 'ESP32' }
+                    ],
+                    optionalServices: [CONFIG.SERVICE_UUID]
+                });
+
+                log(`Gerät gefunden: ${device.name || device.id}`);
+
+                device.addEventListener('gattserverdisconnected', onDisconnected);
+
+                const server = await device.gatt.connect();
+                log('GATT verbunden');
+
+                const service = await server.getPrimaryService(CONFIG.SERVICE_UUID);
+                log('Service gefunden');
+
+                // Temperature Characteristic
+                tempChar = await service.getCharacteristic(CONFIG.CHAR_TEMP_UUID);
+                await tempChar.startNotifications();
+                
+                tempChar.addEventListener('characteristicvaluechanged', event => {
+                    const value = new TextDecoder().decode(event.target.value);
+                    const temperature = parseFloat(value).toFixed(2);
+                    
+                    if (!isNaN(temperature)) {
+                        updateTemperature(temperature);
+                        const record = addRecord(temperature);
+                        log(`Temperatur: ${temperature} °C`);
+                        updateStats();
+                    }
+                });
+
+                // Interval Characteristic
+                intervalChar = await service.getCharacteristic(CONFIG.CHAR_INTERVAL_UUID);
+                
+                // Read current interval
+                try {
+                    const intervalValue = await intervalChar.readValue();
+                    const intervalText = new TextDecoder().decode(intervalValue);
+                    const interval = parseInt(intervalText);
+                    
+                    if (!isNaN(interval)) {
+                        elements.intervalSlider.value = interval;
+                        elements.intervalLabel.textContent = interval + ' s';
+                        log(`Aktuelles Intervall: ${interval} s`);
+                    }
+                } catch (e) {
+                    log('Konnte Intervall nicht lesen');
+                }
+
+                updateConnectionStatus(true, device.name || device.id);
+                log('Verbindung erfolgreich - Empfange Daten...');
+
+            } catch (error) {
+                log('Verbindungsfehler: ' + error.message);
+                console.error('Bluetooth error:', error);
+                
+                if (error.name === 'NotFoundError') {
+                    log('ESP32C3-Temp nicht gefunden. Stelle sicher dass:');
+                    log('- ESP32 eingeschaltet ist');
+                    log('- BLE Advertising aktiv ist');
+                    log('- Gerät in Reichweite ist');
+                }
+            } finally {
+                elements.connectBtn.disabled = false;
+                elements.connectBtn.textContent = '🔗 Verbinden';
+            }
+        }
+
+        function onDisconnected() {
+            log('Verbindung getrennt');
+            updateConnectionStatus(false);
+            device = null;
+            tempChar = null;
+            intervalChar = null;
+        }
+
+        async function disconnect() {
+            if (device && device.gatt.connected) {
+                device.gatt.disconnect();
+                log('Verbindung getrennt');
+            }
+        }
+
+        // Event bindings
+        function bindEvents() {
+            elements.connectBtn.addEventListener('click', connect);
+            elements.disconnectBtn.addEventListener('click', disconnect);
+            
+            elements.clearBtn.addEventListener('click', () => {
+                clearRecords();
+                log('Alle lokalen Daten gelöscht');
+            });
+
+            elements.intervalSlider.addEventListener('input', () => {
+                elements.intervalLabel.textContent = elements.intervalSlider.value + ' s';
+            });
+
+            elements.intervalSlider.addEventListener('change', async () => {
+                const interval = parseInt(elements.intervalSlider.value);
+                
+                if (intervalChar) {
+                    try {
+                        const encoder = new TextEncoder();
+                        await intervalChar.writeValue(encoder.encode(interval.toString()));
+                        log(`Intervall auf ${interval} s gesetzt`);
+                    } catch (error) {
+                        log('Fehler beim Setzen des Intervalls: ' + error.message);
+                    }
+                }
+            });
+
+            elements.wakeLock.addEventListener('change', async (e) => {
+                if (e.target.checked) {
+                    await requestWakeLock();
+                } else {
+                    releaseWakeLock();
+                }
+            });
+
+            elements.exportBtn.addEventListener('click', exportCSV);
+        }
+
+        // Wake Lock
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    log('Wake Lock aktiviert');
+                }
+            } catch (e) {
+                log('Wake Lock Fehler: ' + e.message);
+            }
+        }
+
+        function releaseWakeLock() {
+            if (wakeLock) {
+                wakeLock.release();
+                wakeLock = null;
+                log('Wake Lock deaktiviert');
+            }
+        }
+
+        // CSV Export
+        function exportCSV() {
+            if (records.length === 0) {
+                alert('Keine Daten zum Exportieren');
+                return;
+            }
+
+            let csv = 'timestamp,temperature_celsius\n';
+            records.forEach(record => {
+                csv += `${record.timestamp},${record.temperature}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const filename = `temperatur_data_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
+            
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            log(`CSV exportiert: ${filename}`);
+        }
+
+        // Start the app
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
 </body>
 </html>
