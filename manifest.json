@@ -1,21 +1,9 @@
 {
-  "name": "ESP32 Temperatur",
-  "short_name": "Temperatur",
-  "description": "Temperatur vom ESP32 Sensor",
-  "start_url": "/",
+  "name": "Outback Temperatur",
+  "short_name": "OutbackTemp",
   "display": "standalone",
-  "background_color": "#667eea",
-  "theme_color": "#667eea",
-  "icons": [
-    {
-      "src": "https://cdn-icons-png.flaticon.com/512/3097/3097131.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "https://cdn-icons-png.flaticon.com/512/3097/3097131.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
-  ]
+  "start_url": "index.html",
+  "background_color": "#f5f5f7",
+  "theme_color": "#007aff",
+  "icons": []
 }
