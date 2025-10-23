@@ -1,664 +1,131 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Temperatur • ESP32</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <style>
-        :root {
-            --primary: #007AFF;
-            --secondary: #5856D6;
-            --background: #000000;
-            --card-bg: rgba(28, 28, 30, 0.8);
-            --text-primary: #FFFFFF;
-            --text-secondary: #8E8E93;
-            --success: #34C759;
-            --warning: #FF9500;
-            --gradient: linear-gradient(135deg, #007AFF 0%, #5856D6 100%);
-            --blur: blur(20px);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-        }
-
-        body {
-            background: var(--background);
-            color: var(--text-primary);
-            min-height: 100vh;
-            padding: 0;
-            overflow-x: hidden;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        /* Header */
-        .header {
-            text-align: center;
-            padding: 40px 20px 20px;
-        }
-
-        .app-title {
-            font-size: 34px;
-            font-weight: 700;
-            background: var(--gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 8px;
-        }
-
-        .app-subtitle {
-            font-size: 17px;
-            color: var(--text-secondary);
-            font-weight: 400;
-        }
-
-        /* Cards */
-        .card {
-            background: var(--card-bg);
-            backdrop-filter: var(--blur);
-            border-radius: 20px;
-            padding: 24px;
-            margin: 16px 0;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-
-        /* Connection Card */
-        .connection-card {
-            text-align: center;
-        }
-
-        .status-indicator {
-            display: inline-flex;
-            align-items: center;
-            padding: 8px 16px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 20px;
-            margin-bottom: 20px;
-            font-size: 15px;
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #FF3B30;
-            margin-right: 8px;
-            transition: background 0.3s ease;
-        }
-
-        .status-dot.connected {
-            background: var(--success);
-        }
-
-        /* Buttons */
-        .btn {
-            background: var(--primary);
-            border: none;
-            padding: 14px 28px;
-            border-radius: 14px;
-            font-size: 17px;
-            font-weight: 600;
-            color: white;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin: 4px;
-        }
-
-        .btn:hover {
-            background: #0056CC;
-            transform: translateY(-1px);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .btn-secondary {
-            background: rgba(255,255,255,0.1);
-        }
-
-        .btn-secondary:hover {
-            background: rgba(255,255,255,0.2);
-        }
-
-        /* Temperature Display */
-        .temperature-display {
-            text-align: center;
-            padding: 30px 0;
-        }
-
-        .temperature-value {
-            font-size: 80px;
-            font-weight: 300;
-            background: var(--gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            line-height: 1;
-        }
-
-        .temperature-unit {
-            font-size: 40px;
-            color: var(--text-secondary);
-            font-weight: 300;
-        }
-
-        /* Tabs */
-        .tab-nav {
-            display: flex;
-            background: var(--card-bg);
-            backdrop-filter: var(--blur);
-            border-radius: 15px;
-            padding: 4px;
-            margin: 24px 0;
-        }
-
-        .tab-btn {
-            flex: 1;
-            padding: 12px;
-            text-align: center;
-            background: transparent;
-            border: none;
-            color: var(--text-secondary);
-            font-size: 16px;
-            font-weight: 500;
-            cursor: pointer;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-        }
-
-        .tab-btn.active {
-            background: rgba(255,255,255,0.1);
-            color: var(--text-primary);
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Charts */
-        .chart-container {
-            position: relative;
-            height: 300px;
-            margin: 20px 0;
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 16px;
-            margin: 20px 0;
-        }
-
-        .stat-card {
-            background: rgba(255,255,255,0.05);
-            border-radius: 16px;
-            padding: 20px;
-            text-align: center;
-        }
-
-        .stat-value {
-            font-size: 28px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-
-        .stat-label {
-            font-size: 14px;
-            color: var(--text-secondary);
-        }
-
-        /* Loading Animation */
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,0.3);
-            border-radius: 50%;
-            border-top-color: var(--primary);
-            animation: spin 1s ease-in-out infinite;
-            margin-right: 8px;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .container {
-                padding: 16px;
-            }
-            
-            .temperature-value {
-                font-size: 64px;
-            }
-            
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Outback Temperatur</title>
+<link rel="manifest" href="manifest.json">
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  text-align: center;
+  background: #f5f5f7;
+  color: #1c1c1e;
+  margin: 0;
+  padding: 2rem;
+}
+h1 {
+  font-size: 1.8rem;
+  margin-bottom: 1rem;
+}
+button {
+  background-color: #007aff;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 20px;
+  font-size: 1.1rem;
+  margin: 0.5rem;
+}
+input[type=number] {
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  padding: 8px;
+  width: 80px;
+  font-size: 1rem;
+}
+#log {
+  margin-top: 20px;
+  font-size: 0.9rem;
+  max-height: 200px;
+  overflow-y: auto;
+  text-align: left;
+  background: white;
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+</style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <h1 class="app-title">Temperatur</h1>
-            <p class="app-subtitle">ESP32 Sensor Monitoring</p>
-        </div>
+<h1>🌡️ Outback Temperatur</h1>
+<button id="connectBtn">🔗 Verbinden</button>
+<p>Intervall: <input id="intervalInput" type="number" min="1" max="30" value="5"> s
+<button id="setIntervalBtn">Setzen</button></p>
+<h2 id="tempDisplay">--.- °C</h2>
 
-        <!-- Connection Card -->
-        <div class="card connection-card">
-            <div class="status-indicator">
-                <div class="status-dot" id="statusDot"></div>
-                <span id="statusText">Nicht verbunden</span>
-            </div>
-            
-            <div>
-                <button class="btn" id="connectBtn">
-                    <span class="loading" id="connectLoading" style="display: none;"></span>
-                    Mit ESP32 verbinden
-                </button>
-                <button class="btn btn-secondary" id="disconnectBtn" style="display: none;">
-                    Trennen
-                </button>
-                <button class="btn btn-secondary" id="loadHistoryBtn" style="display: none;">
-                    📊 History laden
-                </button>
-            </div>
-        </div>
+<button id="exportBtn">📤 CSV exportieren</button>
+<div id="log"></div>
 
-        <!-- Live Temperature Card -->
-        <div class="card">
-            <div class="temperature-display">
-                <div class="temperature-value">
-                    <span id="temperature">--</span><span class="temperature-unit">°C</span>
-                </div>
-            </div>
-        </div>
+<script>
+let device, server, tempChar, intervalChar;
+let readings = [];
 
-        <!-- Tab Navigation -->
-        <div class="tab-nav">
-            <button class="tab-btn active" onclick="showTab('live')">Live</button>
-            <button class="tab-btn" onclick="showTab('history')">Verlauf</button>
-            <button class="tab-btn" onclick="showTab('stats')">Statistik</button>
-        </div>
+async function connectBLE() {
+  try {
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ namePrefix: 'ESP32C3_TempSensor' }],
+      optionalServices: ['12345678-1234-5678-1234-56789abcdef0']
+    });
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService('12345678-1234-5678-1234-56789abcdef0');
+    tempChar = await service.getCharacteristic('12345678-1234-5678-1234-56789abcdef1');
+    intervalChar = await service.getCharacteristic('12345678-1234-5678-1234-56789abcdef2');
 
-        <!-- Live Tab -->
-        <div id="live" class="tab-content active">
-            <div class="card">
-                <h3 style="margin-bottom: 20px; font-size: 22px;">Echtzeit Temperatur</h3>
-                <div class="chart-container">
-                    <canvas id="liveChart"></canvas>
-                </div>
-            </div>
-        </div>
+    tempChar.startNotifications();
+    tempChar.addEventListener('characteristicvaluechanged', handleTemperature);
 
-        <!-- History Tab -->
-        <div id="history" class="tab-content">
-            <div class="card">
-                <h3 style="margin-bottom: 20px; font-size: 22px;">Temperatur Verlauf</h3>
-                <div class="chart-container">
-                    <canvas id="historyChart"></canvas>
-                </div>
-            </div>
-        </div>
+    log('✅ Verbunden.');
+    wakeLock();
+  } catch (error) {
+    log('Fehler: ' + error);
+  }
+}
 
-        <!-- Stats Tab -->
-        <div id="stats" class="tab-content">
-            <div class="card">
-                <h3 style="margin-bottom: 20px; font-size: 22px;">Statistik</h3>
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-value" id="avgTemp">--°C</div>
-                        <div class="stat-label">Durchschnitt</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="maxTemp">--°C</div>
-                        <div class="stat-label">Maximum</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="minTemp">--°C</div>
-                        <div class="stat-label">Minimum</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+function handleTemperature(event) {
+  const decoder = new TextDecoder();
+  const value = decoder.decode(event.target.value);
+  const timestamp = new Date().toLocaleTimeString();
+  document.getElementById('tempDisplay').innerText = value + ' °C';
+  readings.push({ time: timestamp, temp: value });
+  log(`${timestamp}: ${value} °C`);
+}
 
-    <script>
-        // Bluetooth UUIDs - MÜSSEN mit ESP32 übereinstimmen!
-        const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
-        const TEMP_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
-        const HISTORY_UUID = 'cba1d466-344c-4be3-ab3f-1894e769091a';
+async function setIntervalBLE() {
+  const val = document.getElementById('intervalInput').value;
+  if (intervalChar) {
+    const encoder = new TextEncoder();
+    await intervalChar.writeValue(encoder.encode(val));
+    log(`⏱️ Intervall auf ${val}s gesetzt`);
+  }
+}
 
-        // Globale Variablen
-        let bluetoothDevice = null;
-        let historyCharacteristic = null;
-        let liveData = [];
-        let historyData = [];
-        let liveChart = null;
-        let historyChart = null;
+function log(msg) {
+  const el = document.getElementById('log');
+  el.innerHTML += msg + '<br>';
+  el.scrollTop = el.scrollHeight;
+}
 
-        // Tab Navigation
-        function showTab(tabName) {
-            // Update buttons
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
-            
-            // Update content
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById(tabName).classList.add('active');
-        }
+async function exportCSV() {
+  let csv = "Zeit,Temperatur\n";
+  readings.forEach(r => csv += `${r.time},${r.temp}\n`);
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  window.location.href = `mailto:?subject=Temperaturdaten&body=CSV%20angehängt.&attachment=${url}`;
+}
 
-        // Status Update
-        function updateStatus(message, isConnected = false) {
-            const statusDot = document.getElementById('statusDot');
-            const statusText = document.getElementById('statusText');
-            
-            statusText.textContent = message;
-            statusDot.classList.toggle('connected', isConnected);
-        }
+async function wakeLock() {
+  try {
+    const lock = await navigator.wakeLock.request('screen');
+    log('📱 Bildschirm bleibt an');
+  } catch (err) {
+    log('WakeLock nicht unterstützt: ' + err);
+  }
+}
 
-        // Live Chart initialisieren
-        function initLiveChart() {
-            const ctx = document.getElementById('liveChart').getContext('2d');
-            liveChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Temperatur',
-                        data: liveData,
-                        borderColor: '#007AFF',
-                        backgroundColor: 'rgba(0, 122, 255, 0.1)',
-                        borderWidth: 3,
-                        tension: 0.4,
-                        fill: true,
-                        pointBackgroundColor: '#007AFF',
-                        pointBorderColor: '#FFFFFF',
-                        pointBorderWidth: 2,
-                        pointRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        y: {
-                            grid: { 
-                                color: 'rgba(255,255,255,0.1)',
-                                borderColor: 'rgba(255,255,255,0.1)'
-                            },
-                            ticks: { 
-                                color: 'rgba(255,255,255,0.7)',
-                                font: { size: 12 }
-                            }
-                        },
-                        x: {
-                            grid: { 
-                                color: 'rgba(255,255,255,0.1)',
-                                borderColor: 'rgba(255,255,255,0.1)'
-                            },
-                            ticks: { 
-                                color: 'rgba(255,255,255,0.7)',
-                                font: { size: 12 }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        // History Chart aktualisieren
-        function updateHistoryChart() {
-            const ctx = document.getElementById('historyChart');
-            
-            // Altes Chart zerstören falls existiert
-            if (historyChart) {
-                historyChart.destroy();
-            }
-
-            historyChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: historyData.map((_, i) => `#${i + 1}`),
-                    datasets: [{
-                        label: 'Temperaturverlauf',
-                        data: historyData,
-                        borderColor: '#5856D6',
-                        backgroundColor: 'rgba(88, 86, 214, 0.1)',
-                        borderWidth: 3,
-                        tension: 0.4,
-                        fill: true,
-                        pointBackgroundColor: '#5856D6',
-                        pointBorderColor: '#FFFFFF',
-                        pointBorderWidth: 2,
-                        pointRadius: 3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        y: {
-                            grid: { 
-                                color: 'rgba(255,255,255,0.1)',
-                                borderColor: 'rgba(255,255,255,0.1)'
-                            },
-                            ticks: { 
-                                color: 'rgba(255,255,255,0.7)',
-                                font: { size: 12 }
-                            }
-                        },
-                        x: {
-                            grid: { 
-                                color: 'rgba(255,255,255,0.1)',
-                                borderColor: 'rgba(255,255,255,0.1)'
-                            },
-                            ticks: { 
-                                color: 'rgba(255,255,255,0.7)',
-                                font: { size: 12 },
-                                maxTicksLimit: 10
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        // Statistik berechnen
-        function calculateStats() {
-            if (historyData.length > 0) {
-                const avg = historyData.reduce((a, b) => a + b) / historyData.length;
-                const max = Math.max(...historyData);
-                const min = Math.min(...historyData);
-                
-                document.getElementById('avgTemp').textContent = avg.toFixed(1) + '°C';
-                document.getElementById('maxTemp').textContent = max.toFixed(1) + '°C';
-                document.getElementById('minTemp').textContent = min.toFixed(1) + '°C';
-            }
-        }
-
-        // History Daten laden mit verbessertem Error-Handling
-        async function loadHistory() {
-            try {
-                updateStatus('Lade History...', true);
-                document.getElementById('loadHistoryBtn').disabled = true;
-                document.getElementById('loadHistoryBtn').innerHTML = '⏳ Lädt...';
-                
-                if (!historyCharacteristic) {
-                    throw new Error('Nicht mit ESP32 verbunden');
-                }
-
-                console.log('Lese History-Daten...');
-                const value = await historyCharacteristic.readValue();
-                console.log('Rohdaten empfangen:', value);
-                
-                const historyString = new TextDecoder().decode(value);
-                console.log('History String:', historyString);
-
-                // Bessere Datenvalidierung
-                if (!historyString || historyString.length < 2) {
-                    throw new Error('Keine History-Daten empfangen');
-                }
-
-                // JSON Parsing mit Fehlerbehandlung
-                let parsedData;
-                try {
-                    parsedData = JSON.parse(historyString);
-                } catch (parseError) {
-                    console.error('JSON Parse Error:', parseError);
-                    // Versuche manuelle Verarbeitung
-                    const cleanString = historyString.replace(/[^\d.,\[\]]/g, '');
-                    parsedData = JSON.parse(cleanString);
-                }
-
-                // Datenfilterung
-                historyData = parsedData
-                    .filter(val => val !== null && val !== undefined)
-                    .filter(val => val > -10 && val < 60) // Realistische Temperaturwerte
-                    .map(val => parseFloat(val.toFixed(1)));
-
-                console.log('Verarbeitete History-Daten:', historyData);
-
-                if (historyData.length === 0) {
-                    updateStatus('Keine gültigen History-Daten', true);
-                    // Erstelle Demo-Daten für Test
-                    historyData = Array.from({length: 20}, (_, i) => 20 + Math.sin(i * 0.5) * 5);
-                    console.log('Demo-Daten generiert:', historyData);
-                }
-
-                // Chart aktualisieren
-                updateHistoryChart();
-                
-                // Statistik berechnen
-                calculateStats();
-                
-                updateStatus(`History geladen: ${historyData.length} Werte`, true);
-
-            } catch (error) {
-                console.error('History Fehler:', error);
-                updateStatus(`History Fehler: ${error.message}`, true);
-                
-                // Fallback: Demo-Daten anzeigen
-                historyData = Array.from({length: 15}, (_, i) => 20 + Math.random() * 10);
-                updateHistoryChart();
-                calculateStats();
-                updateStatus('Demo-Daten angezeigt', true);
-            } finally {
-                document.getElementById('loadHistoryBtn').disabled = false;
-                document.getElementById('loadHistoryBtn').innerHTML = '📊 History laden';
-            }
-        }
-
-        // Bluetooth Verbindung herstellen
-        document.getElementById('connectBtn').onclick = async function() {
-            try {
-                updateStatus('Suche ESP32...', false);
-                document.getElementById('connectLoading').style.display = 'inline-block';
-                document.getElementById('connectBtn').disabled = true;
-                
-                bluetoothDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: 'ESP32-Temperatur' }],
-                    optionalServices: [SERVICE_UUID]
-                });
-                
-                updateStatus('Verbinde...', false);
-                const server = await bluetoothDevice.gatt.connect();
-                const service = await server.getPrimaryService(SERVICE_UUID);
-                
-                // Temperature Characteristic für Echtzeit-Daten
-                const tempChar = await service.getCharacteristic(TEMP_UUID);
-                await tempChar.startNotifications();
-                tempChar.addEventListener('characteristicvaluechanged', event => {
-                    const value = parseFloat(new TextDecoder().decode(event.target.value));
-                    document.getElementById('temperature').textContent = value.toFixed(1);
-                    
-                    // Live Chart updaten
-                    liveData.push(value);
-                    if (liveData.length > 15) liveData.shift();
-                    if (liveChart) liveChart.update();
-                    
-                    updateStatus('Empfange Daten...', true);
-                });
-                
-                // History Characteristic für gespeicherte Daten
-                historyCharacteristic = await service.getCharacteristic(HISTORY_UUID);
-                console.log('History Characteristic gefunden:', historyCharacteristic);
-                
-                // UI updaten
-                document.getElementById('connectBtn').style.display = 'none';
-                document.getElementById('disconnectBtn').style.display = 'inline-block';
-                document.getElementById('loadHistoryBtn').style.display = 'inline-block';
-                
-                initLiveChart();
-                updateStatus('Verbunden - History verfügbar', true);
-                
-                // Automatisch History laden nach Verbindung
-                setTimeout(() => {
-                    loadHistory();
-                }, 1000);
-                
-            } catch(error) {
-                console.error('Connection error:', error);
-                updateStatus(`Fehler: ${error.message}`, false);
-            } finally {
-                document.getElementById('connectLoading').style.display = 'none';
-                document.getElementById('connectBtn').disabled = false;
-            }
-        };
-
-        // History Button Event
-        document.getElementById('loadHistoryBtn').onclick = loadHistory;
-        
-        // Trennen Button Event
-        document.getElementById('disconnectBtn').onclick = function() {
-            if(bluetoothDevice) {
-                bluetoothDevice.gatt.disconnect();
-            }
-            document.getElementById('connectBtn').style.display = 'inline-block';
-            document.getElementById('disconnectBtn').style.display = 'none';
-            document.getElementById('loadHistoryBtn').style.display = 'none';
-            updateStatus('Getrennt', false);
-            document.getElementById('temperature').textContent = '--';
-        };
-
-        // PWA Service Worker
-        if('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js');
-        }
-    </script>
+document.getElementById('connectBtn').addEventListener('click', connectBLE);
+document.getElementById('setIntervalBtn').addEventListener('click', setIntervalBLE);
+document.getElementById('exportBtn').addEventListener('click', exportCSV);
+</script>
 </body>
 </html>
