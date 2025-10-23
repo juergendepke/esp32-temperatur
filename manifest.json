@@ -1,13 +1,15 @@
 {
-  "name": "Outback Temperature Monitor",
-  "short_name": "OutbackTemp",
+  "name": "TempPro Dashboard",
+  "short_name": "TempPro",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f2f2f7",
+  "background_color": "#f8fafc",
   "theme_color": "#007aff",
-  "description": "Professional ESP32-C3 Temperature Monitoring PWA",
+  "description": "Professional ESP32-C3 Temperature Monitoring Dashboard",
   "categories": ["utilities", "productivity"],
   "lang": "de-DE",
+  "orientation": "portrait-primary",
+  "scope": "/",
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -21,5 +23,18 @@
       "type": "image/png"
     }
   ],
-  "orientation": "portrait-primary"
+  "screenshots": [
+    {
+      "src": "screenshots/mobile.png",
+      "sizes": "375x812",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "screenshots/desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ]
 }
