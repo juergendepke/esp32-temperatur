@@ -1,192 +1,73 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#007AFF">
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon.png">
-<title>TempMonitor</title>
-<style>
-  :root {
-    color-scheme: light dark;
-    --accent: #007AFF;
-    --bg-light: #f9f9f9;
-    --bg-dark: #1c1c1e;
-    --text-light: #111;
-    --text-dark: #eee;
-    --card-bg-light: #fff;
-    --card-bg-dark: #2c2c2e;
-  }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: var(--bg-light);
-    color: var(--text-light);
-    margin: 0;
-    padding: 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    transition: background 0.3s, color 0.3s;
-  }
-  @media (prefers-color-scheme: dark) {
-    body {
-      background: var(--bg-dark);
-      color: var(--text-dark);
-    }
-  }
-  header {
-    text-align: center;
-    font-size: 1.6rem;
-    font-weight: 600;
-    color: var(--accent);
-  }
-  .card {
-    background: var(--card-bg-light);
-    border-radius: 16px;
-    padding: 1rem;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    transition: background 0.3s;
-  }
-  @media (prefers-color-scheme: dark) {
-    .card { background: var(--card-bg-dark); }
-  }
-  button {
-    appearance: none;
-    background: var(--accent);
-    border: none;
-    color: white;
-    font-size: 1rem;
-    font-weight: 500;
-    padding: 0.8rem 1.2rem;
-    border-radius: 12px;
-    width: 100%;
-    cursor: pointer;
-    transition: opacity 0.2s, transform 0.1s;
-  }
-  button:active {
-    opacity: 0.8;
-    transform: scale(0.98);
-  }
-  #temperature {
-    font-size: 2.4rem;
-    text-align: center;
-    font-weight: 600;
-    margin-top: 0.5rem;
-  }
-  #log {
-    max-height: 180px;
-    overflow-y: auto;
-    font-family: monospace;
-    font-size: 0.9rem;
-    line-height: 1.4;
-  }
-  footer {
-    text-align: center;
-    font-size: 0.8rem;
-    color: gray;
-    margin-top: auto;
-  }
-  input[type=number] {
-    width: 60px;
-    border-radius: 8px;
-    border: 1px solid #ccc;
-    padding: 0.3rem;
-    text-align: center;
-  }
-</style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Outback Temp · ESP32C3</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header>🌡️ TempMonitor</header>
+    <div class="container">
+        <header>
+            <div class="logo">T</div>
+            <div>
+                <h1>Outback Temp</h1>
+                <p class="lead">ESP32-C3 • Offline-ready • BLE</p>
+            </div>
+        </header>
 
-  <div class="card">
-    <div style="text-align:center;">
-      <button id="connectBtn">🔗 Mit Sensor verbinden</button>
-      <div id="temperature">-- °C</div>
-      <div>
-        Intervall:
-        <input id="intervalInput" type="number" min="1" max="30" value="5"> s
-        <button id="setIntervalBtn">Setzen</button>
-      </div>
+        <section class="card center">
+            <div id="status" class="small status-disconnected">🔌 Getrennt</div>
+            <div class="big-temp" id="temp">--.-- °C</div>
+            <div class="status" id="lastUpdate">—</div>
+
+            <div class="controls">
+                <button id="connectBtn" class="btn btn-primary">🔗 Verbinden</button>
+                <button id="disconnectBtn" class="btn btn-secondary">🔌 Trennen</button>
+                <button id="clearBtn" class="btn btn-secondary">🗑️ Clear Daten</button>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="row">
+                <div class="control-group">
+                    <label class="small">Messintervall</label>
+                    <div class="slider-container">
+                        <input id="intervalSlider" type="range" min="1" max="30" value="2" class="slider">
+                        <div class="pill" id="intervalLabel">2 s</div>
+                    </div>
+                </div>
+                <div class="wake-lock-control">
+                    <label class="checkbox-label small">
+                        <input id="wakeLock" type="checkbox">
+                        Bildschirm an
+                    </label>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="data-header">
+                <div>
+                    <strong>Messdaten</strong>
+                    <div class="small">Lokal gespeichert (localStorage)</div>
+                </div>
+                <div class="data-actions">
+                    <button id="exportBtn" class="btn btn-primary">CSV Export</button>
+                </div>
+            </div>
+            <div class="log" id="dataLog"></div>
+        </section>
+
+        <footer>
+            Hinweis: Für iOS Bluefy oder WebBLE verwenden.
+            <div class="connection-stats">
+                <span id="connectionStats">Datenpunkte: 0</span>
+            </div>
+        </footer>
     </div>
-  </div>
 
-  <div class="card">
-    <h3>Messwerte</h3>
-    <div id="log"></div>
-    <button id="exportBtn">📄 CSV exportieren</button>
-  </div>
-
-  <footer>© 2025 TempMonitor</footer>
-
-<script>
-let device, characteristic;
-let logData = [];
-let intervalSec = 5;
-
-async function connectBLE() {
-  try {
-    device = await navigator.bluetooth.requestDevice({
-      filters: [{ namePrefix: "ESP32C3_Temp" }],
-      optionalServices: ["12345678-1234-5678-1234-56789abcdef0"]
-    });
-    const server = await device.gatt.connect();
-    const service = await server.getPrimaryService("12345678-1234-5678-1234-56789abcdef0");
-    characteristic = await service.getCharacteristic("12345678-1234-5678-1234-56789abcdef1");
-    characteristic.startNotifications();
-    characteristic.addEventListener("characteristicvaluechanged", handleTemp);
-    appendLog("🔗 Verbunden mit " + device.name);
-    keepScreenAwake();
-  } catch (err) {
-    appendLog("❌ Verbindung fehlgeschlagen: " + err);
-  }
-}
-
-function handleTemp(event) {
-  const value = new TextDecoder().decode(event.target.value);
-  const temp = parseFloat(value).toFixed(2);
-  const timestamp = new Date().toLocaleTimeString();
-  document.getElementById("temperature").textContent = temp + " °C";
-  logData.push({ time: timestamp, temp });
-  appendLog(`${timestamp} → ${temp} °C`);
-}
-
-function appendLog(text) {
-  const log = document.getElementById("log");
-  log.innerHTML += text + "<br>";
-  log.scrollTop = log.scrollHeight;
-}
-
-function exportCSV() {
-  let csv = "Zeit,Temperatur\n";
-  logData.forEach(d => csv += `${d.time},${d.temp}\n`);
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "temperatur_log.csv";
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function setIntervalValue() {
-  intervalSec = document.getElementById("intervalInput").value;
-  appendLog("⏱ Intervall auf " + intervalSec + " s gesetzt");
-}
-
-let wakeLock = null;
-async function keepScreenAwake() {
-  try {
-    wakeLock = await navigator.wakeLock.request("screen");
-    appendLog("💡 Bildschirm bleibt an");
-  } catch (err) {
-    appendLog("⚠️ WakeLock nicht unterstützt");
-  }
-}
-
-document.getElementById("connectBtn").addEventListener("click", connectBLE);
-document.getElementById("exportBtn").addEventListener("click", exportCSV);
-document.getElementById("setIntervalBtn").addEventListener("click", setIntervalValue);
-</script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>
