@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Temp Monitor · ESP32-C3</title>
+    <title>Temp Monitor · TEMP-C3</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -37,6 +37,7 @@
         }
         .connected { background: #d4f7d4; color: #2d5016; }
         .disconnected { background: #ffd6d6; color: #8b0000; }
+        .searching { background: #fff3cd; color: #856404; }
         .btn {
             width: 100%;
             padding: 14px;
@@ -76,7 +77,7 @@
             padding: 12px;
             height: 200px;
             overflow-y: auto;
-            font-family: monospace;
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
             font-size: 12px;
             line-height: 1.4;
         }
@@ -93,7 +94,8 @@
 </head>
 <body>
     <div class="warning">
-        <strong>💡 Tipp:</strong> Auf iPhone Bluefy oder WebBLE App verwenden!
+        <strong>💡 FÜR iPHONE:</strong> Bluefy oder WebBLE App aus dem App Store installieren!
+        Dann diese Seite in Bluefy öffnen.
     </div>
 
     <div class="card">
@@ -103,7 +105,7 @@
             Letzte Aktualisierung: --
         </div>
         
-        <button class="btn btn-primary" id="connectBtn">🔗 Verbinden</button>
+        <button class="btn btn-primary" id="connectBtn">🔗 Mit TEMP-C3 verbinden</button>
         <button class="btn btn-secondary" id="disconnectBtn">🔌 Trennen</button>
     </div>
 
@@ -118,26 +120,18 @@
     </div>
 
     <div class="card">
-        <div style="margin-bottom: 12px; font-weight: 600;">Daten</div>
-        <button class="btn btn-primary" id="exportBtn">📥 CSV Export</button>
-        <button class="btn btn-secondary" id="clearBtn">🗑️ Daten löschen</button>
-    </div>
-
-    <div class="card">
-        <div style="margin-bottom: 12px; font-weight: 600;">Log</div>
-        <div class="log" id="log">App gestartet...</div>
+        <div class="log" id="log">App gestartet - Bereit für Verbindung...</div>
     </div>
 
     <script>
-        // Einfache Konfiguration
-        const SERVICE_UUID = '12345678-1234-5678-1234-1234567890ab';
-        const CHAR_TEMP_UUID = 'abcd1234-5678-90ab-cdef-1234567890ab';
-        const CHAR_INTERVAL_UUID = 'abcd1235-5678-90ab-cdef-1234567890ab';
+        // UUIDs - MÜSSEN GENAU WIE IM ESP32 SEIN!
+        const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+        const CHAR_TEMP_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+        const CHAR_INTERVAL_UUID = 'd4a54c42-6df7-4b89-9b8a-1c86c7e7a1f3';
 
         let device = null;
         let tempChar = null;
         let intervalChar = null;
-        let records = [];
 
         // UI Elemente
         const statusEl = document.getElementById('status');
@@ -149,8 +143,6 @@
         const intervalSlider = document.getElementById('intervalSlider');
         const intervalValue = document.getElementById('intervalValue');
         const applyIntervalBtn = document.getElementById('applyInterval');
-        const exportBtn = document.getElementById('exportBtn');
-        const clearBtn = document.getElementById('clearBtn');
 
         // Log-Funktion
         function log(message) {
@@ -172,29 +164,49 @@
         // Verbindung herstellen
         async function connect() {
             try {
-                log('Suche Gerät...');
+                log('🔍 Suche BLE Geräte...');
+                updateStatus(false);
+                connectBtn.disabled = true;
+                connectBtn.textContent = '🔎 Suche...';
+                statusEl.textContent = '🔎 Suche Gerät...';
+                statusEl.className = 'status searching';
                 
                 if (!navigator.bluetooth) {
-                    alert('Web Bluetooth nicht verfügbar. Bitte Bluefy/WebBLE verwenden!');
+                    alert('Web Bluetooth nicht verfügbar. Bitte Bluefy oder WebBLE App verwenden!');
+                    log('❌ Web Bluetooth nicht unterstützt');
                     return;
                 }
 
+                // Nach Geräten suchen
                 device = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: 'TempC3-Simple' }],
+                    filters: [
+                        { name: 'TEMP-C3' },
+                        { namePrefix: 'TEMP' },
+                        { namePrefix: 'ESP' }
+                    ],
                     optionalServices: [SERVICE_UUID]
                 });
 
-                log(`Gerät gefunden: ${device.name}`);
+                if (!device) {
+                    log('❌ Kein Gerät ausgewählt');
+                    return;
+                }
+
+                log(`📱 Gefunden: ${device.name || 'Unbekanntes Gerät'}`);
+                log('🔗 Verbinde mit GATT Server...');
                 
                 const server = await device.gatt.connect();
-                log('Verbinde mit GATT...');
+                log('✅ GATT verbunden');
                 
+                log('🔍 Suche Service...');
                 const service = await server.getPrimaryService(SERVICE_UUID);
-                log('Service gefunden');
+                log('✅ Service gefunden');
 
                 // Temperatur Characteristic
+                log('🔍 Temperatur Characteristic...');
                 tempChar = await service.getCharacteristic(CHAR_TEMP_UUID);
                 await tempChar.startNotifications();
+                log('✅ Temperatur Notifications aktiviert');
                 
                 tempChar.addEventListener('characteristicvaluechanged', event => {
                     const value = new TextDecoder().decode(event.target.value);
@@ -203,36 +215,46 @@
                     tempEl.textContent = `${temp} °C`;
                     lastUpdateEl.textContent = `Letzte Aktualisierung: ${new Date().toLocaleTimeString()}`;
                     
-                    // Daten speichern
-                    records.push({
-                        timestamp: new Date().toISOString(),
-                        temperature: temp
-                    });
-                    
-                    log(`Temperatur: ${temp}°C`);
+                    log(`🌡️ Temperatur: ${temp}°C`);
                 });
 
                 // Intervall Characteristic
+                log('🔍 Intervall Characteristic...');
                 intervalChar = await service.getCharacteristic(CHAR_INTERVAL_UUID);
                 
                 // Aktuelles Intervall lesen
                 try {
-                    const intervalValue = await intervalChar.readValue();
-                    const intervalText = new TextDecoder().decode(intervalValue);
+                    const intervalData = await intervalChar.readValue();
+                    const intervalText = new TextDecoder().decode(intervalData);
                     const interval = parseInt(intervalText);
                     intervalSlider.value = interval;
-                    updateIntervalDisplay(interval);
-                    log(`Intervall: ${interval}s`);
+                    intervalValue.textContent = `${interval}s`;
+                    log(`⏱️ Aktuelles Intervall: ${interval}s`);
                 } catch (e) {
-                    log('Konnte Intervall nicht lesen');
+                    log('⚠️ Konnte Intervall nicht lesen');
                 }
 
-                updateStatus(true, device.name);
-                log('Verbindung erfolgreich!');
+                updateStatus(true, device.name || 'TEMP-C3');
+                log('🎉 Verbindung erfolgreich! Empfange Daten...');
 
             } catch (error) {
-                log(`Fehler: ${error.message}`);
-                console.error(error);
+                log(`❌ Fehler: ${error.message}`);
+                console.error('Bluetooth error:', error);
+                
+                if (error.name === 'NotFoundError') {
+                    log('❌ TEMP-C3 nicht gefunden!');
+                    log('💡 Überprüfe:');
+                    log('- ESP32 ist eingeschaltet');
+                    log'- Serial Monitor zeigt "BLE BEREIT!"');
+                    log('- Bluetooth am iPhone ist aktiv');
+                    log'- Gerät ist in Reichweite');
+                }
+            } finally {
+                connectBtn.disabled = false;
+                connectBtn.textContent = '🔗 Mit TEMP-C3 verbinden';
+                if (!device || !device.gatt.connected) {
+                    updateStatus(false);
+                }
             }
         }
 
@@ -240,14 +262,9 @@
         function disconnect() {
             if (device && device.gatt.connected) {
                 device.gatt.disconnect();
-                log('Verbindung getrennt');
+                log('🔌 Verbindung getrennt');
                 updateStatus(false);
             }
-        }
-
-        // Intervall anzeigen
-        function updateIntervalDisplay(value) {
-            intervalValue.textContent = `${value}s`;
         }
 
         // Intervall senden
@@ -258,62 +275,27 @@
                 try {
                     const encoder = new TextEncoder();
                     await intervalChar.writeValue(encoder.encode(interval.toString()));
-                    log(`Intervall gesetzt: ${interval}s`);
+                    log(`⏱️ Intervall gesetzt: ${interval}s`);
                 } catch (error) {
-                    log('Fehler beim Senden des Intervalls');
+                    log('❌ Fehler beim Senden des Intervalls');
                 }
+            } else {
+                log('⚠️ Nicht verbunden');
             }
-        }
-
-        // CSV exportieren
-        function exportCSV() {
-            if (records.length === 0) {
-                alert('Keine Daten zum Exportieren');
-                return;
-            }
-
-            let csv = 'Zeitstempel,Temperatur\n';
-            records.forEach(record => {
-                csv += `${record.timestamp},${record.temperature}\n`;
-            });
-
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            const filename = `temperatur_${new Date().toISOString().slice(0,10)}.csv`;
-            
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            log(`CSV exportiert: ${filename}`);
         }
 
         // Event Listener
         connectBtn.addEventListener('click', connect);
         disconnectBtn.addEventListener('click', disconnect);
         applyIntervalBtn.addEventListener('click', sendInterval);
-        exportBtn.addEventListener('click', exportCSV);
-        clearBtn.addEventListener('click', () => {
-            records = [];
-            log('Daten gelöscht');
-        });
 
         intervalSlider.addEventListener('input', (e) => {
-            updateIntervalDisplay(e.target.value);
+            intervalValue.textContent = `${e.target.value}s`;
         });
 
         // Initialisierung
-        updateIntervalDisplay(intervalSlider.value);
-        log('Bereit für Verbindung...');
-
-        // Automatisch verbinden nach 1 Sekunde (optional)
-        setTimeout(() => {
-            // connect(); // Auskommentiert - Nutzer muss Button drücken
-        }, 1000);
+        log('✅ App bereit - Drücke "Verbinden"');
+        intervalValue.textContent = `${intervalSlider.value}s`;
     </script>
 </body>
 </html>
