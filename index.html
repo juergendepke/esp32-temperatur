@@ -1,45 +1,169 @@
 <!doctype html>
 <html lang="de">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TempLink — ESP32 Temperatur</title>
-<link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css">
-<link rel="icon" href="icon-192.png">
-<script src="https://unpkg.com/lucide@latest"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TempLink — ESP32 Temperatur</title>
+  <meta name="theme-color" content="#007aff">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2248%22 fill=%22%23f8f9fb%22 stroke=%22%23007aff%22 stroke-width=%224%22 /></svg>">
+
+  <style>
+  /* --- Modern iOS-Style --- */
+  :root {
+    --accent: #007aff;
+    --accent-light: #2f95ff;
+    --bg: #f2f3f7;
+    --glass-bg: rgba(255,255,255,0.6);
+    --glass-border: rgba(255,255,255,0.3);
+    --text: #111827;
+    --muted: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial;
+    background: linear-gradient(180deg, #f8f9fb 0%, #e9ecf2 100%);
+    color: var(--text);
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px;
+    backdrop-filter: blur(20px) saturate(180%);
+    background-color: var(--glass-bg);
+    border-bottom: 1px solid var(--glass-border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar h1 { font-size: 20px; margin: 0; font-weight: 600; letter-spacing: -0.3px; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 6px; padding: 10px 14px;
+    border: none; border-radius: 14px;
+    font-weight: 600; cursor: pointer;
+    transition: all 0.25s ease;
+  }
+  .btn.primary {
+    background: var(--accent); color: white;
+    box-shadow: 0 2px 8px rgba(0,122,255,0.3);
+  }
+  .btn.primary:hover { background: var(--accent-light); transform: scale(1.03); }
+  .btn.secondary {
+    background: rgba(0,122,255,0.08); color: var(--accent);
+  }
+
+  main {
+    flex: 1; display: grid; gap: 18px; padding: 20px;
+    animation: fadein 0.8s ease;
+  }
+  .card {
+    backdrop-filter: blur(20px) saturate(180%);
+    background-color: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 22px;
+    padding: 20px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.06); }
+
+  .temp-value {
+    font-size: 64px; font-weight: 700;
+    background: linear-gradient(90deg, var(--accent), var(--accent-light));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    text-align: center;
+  }
+  .temp-meta { text-align: center; margin-top: 6px; color: var(--muted); font-size: 14px; }
+
+  .row { display: flex; align-items: center; gap: 8px; margin: 8px 0; color: var(--muted); }
+
+  @keyframes fadein {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (min-width: 720px) {
+    main { max-width: 720px; margin: 0 auto; }
+  }
+  </style>
 </head>
 <body>
-<div class="app-shell">
-<header class="topbar glass">
-<h1>TempLink</h1>
-<button id="connectBtn" class="btn primary"><i data-lucide="bluetooth"></i> Verbinden</button>
-</header>
+  <header class="topbar">
+    <h1>TempLink</h1>
+    <button id="connectBtn" class="btn primary">🔗 Verbinden</button>
+  </header>
 
+  <main>
+    <section class="card">
+      <div class="temp-value" id="tempValue">--°C</div>
+      <div class="temp-meta">Letzte Aktualisierung: <span id="lastUpdate">—</span></div>
+    </section>
 
-<main class="container fade-in">
-<section class="card temperature-card glass">
-<div class="temp-value" id="tempValue">--°C</div>
-<div class="temp-meta">Letzte Aktualisierung: <span id="lastUpdate">—</span></div>
-</section>
+    <section class="card">
+      <div class="row"><strong>Gerät:</strong> <span id="deviceName">nicht verbunden</span></div>
+      <div class="row"><strong>Service UUID:</strong> <small>12345678-...-ef0</small></div>
+    </section>
 
+    <section class="card" style="text-align:center">
+      <button id="notifyToggle" class="btn secondary">🔔 Benachrichtigungen</button>
+    </section>
+  </main>
 
-<section class="card glass info-card">
-<div class="row"><i data-lucide="cpu"></i> <strong>Gerät:</strong> <span id="deviceName">nicht verbunden</span></div>
-<div class="row"><i data-lucide="activity"></i> <strong>Service UUID:</strong> <small>12345678‑…‑ef0</small></div>
-</section>
+  <script>
+  const SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0';
+  const CHAR_UUID = '12345678-1234-5678-1234-56789abcdef1';
 
+  let device, characteristic, notifying = false;
+  const tempValue = document.getElementById('tempValue');
+  const lastUpdate = document.getElementById('lastUpdate');
+  const deviceNameEl = document.getElementById('deviceName');
+  const connectBtn = document.getElementById('connectBtn');
+  const notifyToggle = document.getElementById('notifyToggle');
 
-<section class="card glass actions-card">
-<button id="notifyToggle" class="btn secondary"><i data-lucide="bell"></i> Benachrichtigungen</button>
-</section>
-</main>
-</div>
+  connectBtn.addEventListener('click', async () => {
+    try {
+      const opts = { filters: [{ services: [SERVICE_UUID] }] };
+      device = await navigator.bluetooth.requestDevice(opts);
+      deviceNameEl.textContent = device.name || 'ESP32_TempSim';
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService(SERVICE_UUID);
+      characteristic = await service.getCharacteristic(CHAR_UUID);
+      await startNotifications();
+    } catch (e) {
+      alert('Verbindung fehlgeschlagen: ' + e);
+      console.error(e);
+    }
+  });
 
+  notifyToggle.addEventListener('click', async () => {
+    if (!characteristic) return;
+    notifying ? await stopNotifications() : await startNotifications();
+  });
 
-<script src="app.js"></script>
-<script>
-lucide.createIcons();
-</script>
+  async function startNotifications() {
+    if (!characteristic) return;
+    await characteristic.startNotifications();
+    characteristic.addEventListener('characteristicvaluechanged', ev => {
+      handleTemp(ev.target.value);
+    });
+    notifying = true;
+    notifyToggle.textContent = '🔕 Stop';
+  }
+
+  async function stopNotifications() {
+    await characteristic.stopNotifications();
+    notifying = false;
+    notifyToggle.textContent = '🔔 Benachrichtigungen';
+  }
+
+  function handleTemp(dataView) {
+    const decoder = new TextDecoder('utf-8');
+    const raw = decoder.decode(dataView.buffer);
+    tempValue.textContent = raw + '°C';
+    lastUpdate.textContent = new Date().toLocaleTimeString();
+  }
+  </script>
 </body>
 </html>
