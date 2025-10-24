@@ -6,33 +6,40 @@
 <title>TempLink — ESP32 Temperatur</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
+<link rel="icon" href="icon-192.png">
+<script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-<header class="topbar">
+<div class="app-shell">
+<header class="topbar glass">
 <h1>TempLink</h1>
-<button id="connectBtn" class="btn">Verbinden</button>
+<button id="connectBtn" class="btn primary"><i data-lucide="bluetooth"></i> Verbinden</button>
 </header>
 
 
-<main class="container">
-<section class="card temperature-card">
+<main class="container fade-in">
+<section class="card temperature-card glass">
 <div class="temp-value" id="tempValue">--°C</div>
 <div class="temp-meta">Letzte Aktualisierung: <span id="lastUpdate">—</span></div>
 </section>
 
 
-<section class="card details-card">
-<div class="row"><strong>Gerät:</strong> <span id="deviceName">nicht verbunden</span></div>
-<div class="row"><strong>Service UUID:</strong> <small>12345678-...-ef0</small></div>
+<section class="card glass info-card">
+<div class="row"><i data-lucide="cpu"></i> <strong>Gerät:</strong> <span id="deviceName">nicht verbunden</span></div>
+<div class="row"><i data-lucide="activity"></i> <strong>Service UUID:</strong> <small>12345678‑…‑ef0</small></div>
 </section>
 
 
-<section class="card actions-card">
-<button id="notifyToggle" class="btn secondary">Benachrichtigungen an</button>
+<section class="card glass actions-card">
+<button id="notifyToggle" class="btn secondary"><i data-lucide="bell"></i> Benachrichtigungen</button>
 </section>
 </main>
+</div>
 
 
 <script src="app.js"></script>
+<script>
+lucide.createIcons();
+</script>
 </body>
 </html>
