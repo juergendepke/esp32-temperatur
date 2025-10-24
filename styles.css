@@ -1,42 +1,80 @@
-/* Apple-like, rounded, responsive */
-:root{
---bg: #f2f5f9;
---card: #ffffff;
---accent: #007aff;
---muted: #6b7280;
+/* Modern iOS-like UI — Glassmorphism, Blur, Smooth Animation */
+background: var(--accent-light);
+transform: scale(1.03);
 }
 
 
-*{box-sizing:border-box}
-html,body{height:100%}
-body{
-margin:0;
-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
-background:var(--bg);
-color:#111827;
+.btn.secondary {
+background: rgba(0,122,255,0.08);
+color: var(--accent);
 }
-.topbar{
-display:flex;align-items:center;justify-content:space-between;padding:14px 16px;
-backdrop-filter: blur(6px);
-}
-.topbar h1{margin:0;font-size:18px}
-.btn{
-background:var(--accent);color:white;padding:8px 12px;border-radius:12px;border:0;font-weight:600;
-}
-.btn.secondary{background:transparent;color:var(--accent);border:1px solid rgba(0,122,255,0.15)}
 
 
-.container{padding:18px;display:grid;gap:12px}
-.card{
-background:var(--card);padding:16px;border-radius:16px;box-shadow:0 6px 18px rgba(17,24,39,0.06);
+.container {
+padding: 20px;
+display: grid;
+gap: 18px;
+animation: fadein 0.8s ease;
 }
-.temperature-card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px}
-.temp-value{font-size:48px;font-weight:700}
-.temp-meta{margin-top:8px;color:var(--muted)}
-.details-card .row{margin:6px 0;color:var(--muted)}
 
 
-@media(min-width:720px){
-.container{max-width:720px;margin:24px auto}
-.temperature-card{flex-direction:row;justify-content:space-between}
+.card {
+border-radius: 22px;
+padding: 20px;
+transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+
+.card:hover {
+transform: translateY(-3px);
+box-shadow: 0 10px 25px rgba(0,0,0,0.06);
+}
+
+
+.temperature-card {
+text-align: center;
+}
+
+
+.temp-value {
+font-size: 64px;
+font-weight: 700;
+background: linear-gradient(90deg, var(--accent), var(--accent-light));
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+}
+
+
+.temp-meta {
+margin-top: 6px;
+color: var(--muted);
+font-size: 14px;
+}
+
+
+.info-card .row {
+display: flex;
+align-items: center;
+gap: 8px;
+margin: 8px 0;
+color: var(--muted);
+}
+
+
+.fade-in {
+animation: fadein 1s ease forwards;
+}
+
+
+@keyframes fadein {
+from { opacity: 0; transform: translateY(10px); }
+to { opacity: 1; transform: translateY(0); }
+}
+
+
+@media (min-width: 720px) {
+.container {
+max-width: 720px;
+margin: 0 auto;
+}
 }
