@@ -1,301 +1,38 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Temp Monitor · TEMP-C3</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #f5f5f7;
-            color: #1d1d1f;
-            padding: 20px;
-            max-width: 400px;
-            margin: 0 auto;
-        }
-        .card {
-            background: white;
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        .temp-display {
-            text-align: center;
-            font-size: 48px;
-            font-weight: 300;
-            margin: 20px 0;
-            color: #007aff;
-        }
-        .status {
-            text-align: center;
-            padding: 8px;
-            border-radius: 8px;
-            margin: 10px 0;
-            font-size: 14px;
-        }
-        .connected { background: #d4f7d4; color: #2d5016; }
-        .disconnected { background: #ffd6d6; color: #8b0000; }
-        .searching { background: #fff3cd; color: #856404; }
-        .btn {
-            width: 100%;
-            padding: 14px;
-            border: none;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            margin: 8px 0;
-            cursor: pointer;
-        }
-        .btn-primary {
-            background: #007aff;
-            color: white;
-        }
-        .btn-secondary {
-            background: #f2f2f7;
-            color: #007aff;
-            border: 1px solid #c6c6c8;
-        }
-        .slider-container {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin: 16px 0;
-        }
-        .slider {
-            flex: 1;
-        }
-        .value {
-            min-width: 50px;
-            text-align: center;
-            font-weight: 600;
-        }
-        .log {
-            background: #f2f2f7;
-            border-radius: 8px;
-            padding: 12px;
-            height: 200px;
-            overflow-y: auto;
-            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-            font-size: 12px;
-            line-height: 1.4;
-        }
-        .warning {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            color: #856404;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 16px;
-            font-size: 14px;
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TempLink — ESP32 Temperatur</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="warning">
-        <strong>💡 FÜR iPHONE:</strong> Bluefy oder WebBLE App aus dem App Store installieren!
-        Dann diese Seite in Bluefy öffnen.
-    </div>
+<header class="topbar">
+<h1>TempLink</h1>
+<button id="connectBtn" class="btn">Verbinden</button>
+</header>
 
-    <div class="card">
-        <div class="status disconnected" id="status">🔌 Nicht verbunden</div>
-        <div class="temp-display" id="temperature">--.-- °C</div>
-        <div style="text-align: center; color: #666; font-size: 14px;" id="lastUpdate">
-            Letzte Aktualisierung: --
-        </div>
-        
-        <button class="btn btn-primary" id="connectBtn">🔗 Mit TEMP-C3 verbinden</button>
-        <button class="btn btn-secondary" id="disconnectBtn">🔌 Trennen</button>
-    </div>
 
-    <div class="card">
-        <div style="margin-bottom: 12px; font-weight: 600;">Einstellungen</div>
-        <div class="slider-container">
-            <span>Intervall:</span>
-            <input type="range" id="intervalSlider" class="slider" min="1" max="10" value="2">
-            <span class="value" id="intervalValue">2s</span>
-        </div>
-        <button class="btn btn-secondary" id="applyInterval">Intervall übernehmen</button>
-    </div>
+<main class="container">
+<section class="card temperature-card">
+<div class="temp-value" id="tempValue">--°C</div>
+<div class="temp-meta">Letzte Aktualisierung: <span id="lastUpdate">—</span></div>
+</section>
 
-    <div class="card">
-        <div class="log" id="log">App gestartet - Bereit für Verbindung...</div>
-    </div>
 
-    <script>
-        // UUIDs - MÜSSEN GENAU WIE IM ESP32 SEIN!
-        const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
-        const CHAR_TEMP_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
-        const CHAR_INTERVAL_UUID = 'd4a54c42-6df7-4b89-9b8a-1c86c7e7a1f3';
+<section class="card details-card">
+<div class="row"><strong>Gerät:</strong> <span id="deviceName">nicht verbunden</span></div>
+<div class="row"><strong>Service UUID:</strong> <small>12345678-...-ef0</small></div>
+</section>
 
-        let device = null;
-        let tempChar = null;
-        let intervalChar = null;
 
-        // UI Elemente
-        const statusEl = document.getElementById('status');
-        const tempEl = document.getElementById('temperature');
-        const lastUpdateEl = document.getElementById('lastUpdate');
-        const logEl = document.getElementById('log');
-        const connectBtn = document.getElementById('connectBtn');
-        const disconnectBtn = document.getElementById('disconnectBtn');
-        const intervalSlider = document.getElementById('intervalSlider');
-        const intervalValue = document.getElementById('intervalValue');
-        const applyIntervalBtn = document.getElementById('applyInterval');
+<section class="card actions-card">
+<button id="notifyToggle" class="btn secondary">Benachrichtigungen an</button>
+</section>
+</main>
 
-        // Log-Funktion
-        function log(message) {
-            const time = new Date().toLocaleTimeString();
-            logEl.innerHTML = `${time} - ${message}<br>` + logEl.innerHTML;
-        }
 
-        // Verbindungsstatus aktualisieren
-        function updateStatus(connected, deviceName = '') {
-            if (connected) {
-                statusEl.textContent = `🔗 Verbunden: ${deviceName}`;
-                statusEl.className = 'status connected';
-            } else {
-                statusEl.textContent = '🔌 Nicht verbunden';
-                statusEl.className = 'status disconnected';
-            }
-        }
-
-        // Verbindung herstellen
-        async function connect() {
-            try {
-                log('🔍 Suche BLE Geräte...');
-                updateStatus(false);
-                connectBtn.disabled = true;
-                connectBtn.textContent = '🔎 Suche...';
-                statusEl.textContent = '🔎 Suche Gerät...';
-                statusEl.className = 'status searching';
-                
-                if (!navigator.bluetooth) {
-                    alert('Web Bluetooth nicht verfügbar. Bitte Bluefy oder WebBLE App verwenden!');
-                    log('❌ Web Bluetooth nicht unterstützt');
-                    return;
-                }
-
-                // Nach Geräten suchen
-                device = await navigator.bluetooth.requestDevice({
-                    filters: [
-                        { name: 'TEMP-C3' },
-                        { namePrefix: 'TEMP' },
-                        { namePrefix: 'ESP' }
-                    ],
-                    optionalServices: [SERVICE_UUID]
-                });
-
-                if (!device) {
-                    log('❌ Kein Gerät ausgewählt');
-                    return;
-                }
-
-                log(`📱 Gefunden: ${device.name || 'Unbekanntes Gerät'}`);
-                log('🔗 Verbinde mit GATT Server...');
-                
-                const server = await device.gatt.connect();
-                log('✅ GATT verbunden');
-                
-                log('🔍 Suche Service...');
-                const service = await server.getPrimaryService(SERVICE_UUID);
-                log('✅ Service gefunden');
-
-                // Temperatur Characteristic
-                log('🔍 Temperatur Characteristic...');
-                tempChar = await service.getCharacteristic(CHAR_TEMP_UUID);
-                await tempChar.startNotifications();
-                log('✅ Temperatur Notifications aktiviert');
-                
-                tempChar.addEventListener('characteristicvaluechanged', event => {
-                    const value = new TextDecoder().decode(event.target.value);
-                    const temp = parseFloat(value).toFixed(2);
-                    
-                    tempEl.textContent = `${temp} °C`;
-                    lastUpdateEl.textContent = `Letzte Aktualisierung: ${new Date().toLocaleTimeString()}`;
-                    
-                    log(`🌡️ Temperatur: ${temp}°C`);
-                });
-
-                // Intervall Characteristic
-                log('🔍 Intervall Characteristic...');
-                intervalChar = await service.getCharacteristic(CHAR_INTERVAL_UUID);
-                
-                // Aktuelles Intervall lesen
-                try {
-                    const intervalData = await intervalChar.readValue();
-                    const intervalText = new TextDecoder().decode(intervalData);
-                    const interval = parseInt(intervalText);
-                    intervalSlider.value = interval;
-                    intervalValue.textContent = `${interval}s`;
-                    log(`⏱️ Aktuelles Intervall: ${interval}s`);
-                } catch (e) {
-                    log('⚠️ Konnte Intervall nicht lesen');
-                }
-
-                updateStatus(true, device.name || 'TEMP-C3');
-                log('🎉 Verbindung erfolgreich! Empfange Daten...');
-
-            } catch (error) {
-                log(`❌ Fehler: ${error.message}`);
-                console.error('Bluetooth error:', error);
-                
-                if (error.name === 'NotFoundError') {
-                    log('❌ TEMP-C3 nicht gefunden!');
-                    log('💡 Überprüfe:');
-                    log('- ESP32 ist eingeschaltet');
-                    log'- Serial Monitor zeigt "BLE BEREIT!"');
-                    log('- Bluetooth am iPhone ist aktiv');
-                    log'- Gerät ist in Reichweite');
-                }
-            } finally {
-                connectBtn.disabled = false;
-                connectBtn.textContent = '🔗 Mit TEMP-C3 verbinden';
-                if (!device || !device.gatt.connected) {
-                    updateStatus(false);
-                }
-            }
-        }
-
-        // Verbindung trennen
-        function disconnect() {
-            if (device && device.gatt.connected) {
-                device.gatt.disconnect();
-                log('🔌 Verbindung getrennt');
-                updateStatus(false);
-            }
-        }
-
-        // Intervall senden
-        async function sendInterval() {
-            const interval = parseInt(intervalSlider.value);
-            
-            if (intervalChar) {
-                try {
-                    const encoder = new TextEncoder();
-                    await intervalChar.writeValue(encoder.encode(interval.toString()));
-                    log(`⏱️ Intervall gesetzt: ${interval}s`);
-                } catch (error) {
-                    log('❌ Fehler beim Senden des Intervalls');
-                }
-            } else {
-                log('⚠️ Nicht verbunden');
-            }
-        }
-
-        // Event Listener
-        connectBtn.addEventListener('click', connect);
-        disconnectBtn.addEventListener('click', disconnect);
-        applyIntervalBtn.addEventListener('click', sendInterval);
-
-        intervalSlider.addEventListener('input', (e) => {
-            intervalValue.textContent = `${e.target.value}s`;
-        });
-
-        // Initialisierung
-        log('✅ App bereit - Drücke "Verbinden"');
-        intervalValue.textContent = `${intervalSlider.value}s`;
-    </script>
+<script src="app.js"></script>
 </body>
 </html>
