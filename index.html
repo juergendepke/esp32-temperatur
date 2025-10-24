@@ -6,9 +6,7 @@
   <title>TempLink — ESP32 Temperatur</title>
   <meta name="theme-color" content="#007aff">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2248%22 fill=%22%23f8f9fb%22 stroke=%22%23007aff%22 stroke-width=%224%22 /></svg>">
-
   <style>
-  /* --- Modern iOS-Style --- */
   :root {
     --accent: #007aff;
     --accent-light: #2f95ff;
@@ -21,14 +19,12 @@
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial;
-    background: linear-gradient(180deg, #f8f9fb 0%, #e9ecf2 100%);
+    font-family: -apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Roboto,Helvetica,Arial;
+    background: linear-gradient(180deg,#f8f9fb 0%,#e9ecf2 100%);
     color: var(--text);
     overflow-x: hidden;
-    display: flex;
-    flex-direction: column;
+    display: flex; flex-direction: column;
   }
-
   .topbar {
     display: flex; justify-content: space-between; align-items: center;
     padding: 14px 18px;
@@ -38,7 +34,6 @@
     position: sticky; top: 0; z-index: 10;
   }
   .topbar h1 { font-size: 20px; margin: 0; font-weight: 600; letter-spacing: -0.3px; }
-
   .btn {
     display: inline-flex; align-items: center; justify-content: center;
     gap: 6px; padding: 10px 14px;
@@ -54,7 +49,6 @@
   .btn.secondary {
     background: rgba(0,122,255,0.08); color: var(--accent);
   }
-
   main {
     flex: 1; display: grid; gap: 18px; padding: 20px;
     animation: fadein 0.8s ease;
@@ -68,22 +62,18 @@
     transition: transform 0.3s ease, box-shadow 0.3s ease;
   }
   .card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.06); }
-
   .temp-value {
     font-size: 64px; font-weight: 700;
-    background: linear-gradient(90deg, var(--accent), var(--accent-light));
+    background: linear-gradient(90deg,var(--accent),var(--accent-light));
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     text-align: center;
   }
   .temp-meta { text-align: center; margin-top: 6px; color: var(--muted); font-size: 14px; }
-
   .row { display: flex; align-items: center; gap: 8px; margin: 8px 0; color: var(--muted); }
-
   @keyframes fadein {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
   }
-
   @media (min-width: 720px) {
     main { max-width: 720px; margin: 0 auto; }
   }
@@ -103,7 +93,7 @@
 
     <section class="card">
       <div class="row"><strong>Gerät:</strong> <span id="deviceName">nicht verbunden</span></div>
-      <div class="row"><strong>Service UUID:</strong> <small>12345678-...-ef0</small></div>
+      <div class="row"><strong>Service UUID:</strong> <small>12345678-1234-5678-1234-56789abcdef0</small></div>
     </section>
 
     <section class="card" style="text-align:center">
@@ -112,8 +102,8 @@
   </main>
 
   <script>
-  const SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0';
-  const CHAR_UUID = '12345678-1234-5678-1234-56789abcdef1';
+  const SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0'.toLowerCase();
+  const CHAR_UUID    = '12345678-1234-5678-1234-56789abcdef1'.toLowerCase();
 
   let device, characteristic, notifying = false;
   const tempValue = document.getElementById('tempValue');
@@ -124,7 +114,10 @@
 
   connectBtn.addEventListener('click', async () => {
     try {
-      const opts = { filters: [{ services: [SERVICE_UUID] }] };
+      const opts = {
+        filters: [{ services: [SERVICE_UUID] }],
+        optionalServices: [SERVICE_UUID]
+      };
       device = await navigator.bluetooth.requestDevice(opts);
       deviceNameEl.textContent = device.name || 'ESP32_TempSim';
       const server = await device.gatt.connect();
@@ -132,30 +125,37 @@
       characteristic = await service.getCharacteristic(CHAR_UUID);
       await startNotifications();
     } catch (e) {
-      alert('Verbindung fehlgeschlagen: ' + e);
-      console.error(e);
+      console.error('BLE Fehler:', e);
+      alert('Verbindung fehlgeschlagen oder nicht unterstützt.\\n' + e);
     }
   });
 
   notifyToggle.addEventListener('click', async () => {
-    if (!characteristic) return;
+    if (!characteristic) return alert('Keine aktive Verbindung.');
     notifying ? await stopNotifications() : await startNotifications();
   });
 
   async function startNotifications() {
-    if (!characteristic) return;
-    await characteristic.startNotifications();
-    characteristic.addEventListener('characteristicvaluechanged', ev => {
-      handleTemp(ev.target.value);
-    });
-    notifying = true;
-    notifyToggle.textContent = '🔕 Stop';
+    try {
+      await characteristic.startNotifications();
+      characteristic.addEventListener('characteristicvaluechanged', ev => handleTemp(ev.target.value));
+      notifying = true;
+      notifyToggle.textContent = '🔕 Stop';
+      console.log('Notifications gestartet');
+    } catch (e) {
+      alert('Fehler beim Start der Notifications: ' + e);
+    }
   }
 
   async function stopNotifications() {
-    await characteristic.stopNotifications();
-    notifying = false;
-    notifyToggle.textContent = '🔔 Benachrichtigungen';
+    try {
+      await characteristic.stopNotifications();
+      notifying = false;
+      notifyToggle.textContent = '🔔 Benachrichtigungen';
+      console.log('Notifications gestoppt');
+    } catch (e) {
+      alert('Fehler beim Stoppen: ' + e);
+    }
   }
 
   function handleTemp(dataView) {
