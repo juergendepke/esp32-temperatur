@@ -1,40 +1,12 @@
 {
-  "name": "TempPro Dashboard",
-  "short_name": "TempPro",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#007aff",
-  "description": "Professional ESP32-C3 Temperature Monitoring Dashboard",
-  "categories": ["utilities", "productivity"],
-  "lang": "de-DE",
-  "orientation": "portrait-primary",
-  "scope": "/",
-  "icons": [
-    {
-      "src": "icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "screenshots/mobile.png",
-      "sizes": "375x812",
-      "type": "image/png",
-      "form_factor": "narrow"
-    },
-    {
-      "src": "screenshots/desktop.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide"
-    }
-  ]
+"name": "TempLink",
+"short_name": "TempLink",
+"start_url": ".",
+"display": "standalone",
+"background_color": "#f2f5f9",
+"theme_color": "#007aff",
+"icons": [
+{"src":"icon-192.png","sizes":"192x192","type":"image/png"},
+{"src":"icon-512.png","sizes":"512x512","type":"image/png"}
+]
 }
