@@ -6,9 +6,8 @@
   <title>TempLink — ESP32 Temperatur</title>
   <meta name="theme-color" content="#007aff">
   <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌡️</text></svg>">
+  <link rel="icon" href="icon.png">
   <style>
-    /* iOS / Glassmorphism Design (wie bisher) */
     :root {
       --accent: #007aff;
       --accent-light: #2f95ff;
@@ -20,49 +19,45 @@
       --success: #34c759;
       --error: #ff3b30;
     }
-
     body {
       margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg); color: var(--text); display: flex; flex-direction: column;
-      min-height: 100vh; overflow-x: hidden;
+      background: var(--bg); color: var(--text);
+      display: flex; flex-direction: column; min-height: 100vh;
     }
-
     .topbar {
       display: flex; justify-content: space-between; align-items: center;
       padding: 16px 20px; backdrop-filter: blur(20px);
       background: rgba(251,251,253,0.8);
-      position: sticky; top: 0; z-index: 1000;
       border-bottom: 1px solid rgba(0,0,0,0.1);
+      position: sticky; top: 0; z-index: 1000;
     }
     .topbar h1 { font-size: 20px; margin: 0; font-weight: 700; }
-
     main { flex: 1; display: grid; gap: 20px; padding: 20px; max-width: 400px; margin: 0 auto; }
-    .card { backdrop-filter: blur(30px); background: var(--card-bg); border: 1px solid var(--card-border);
-      border-radius: 20px; padding: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
-
+    .card {
+      backdrop-filter: blur(30px); background: var(--card-bg);
+      border: 1px solid var(--card-border); border-radius: 20px; padding: 24px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    }
     .btn {
       display: inline-flex; align-items: center; justify-content: center;
       padding: 12px 20px; border-radius: 12px; border: none; cursor: pointer;
       font-weight: 600; font-size: 16px; transition: 0.3s;
     }
-    .btn.primary { background: var(--accent); color: white; box-shadow: 0 4px 16px rgba(0,122,255,0.3); }
+    .btn.primary { background: var(--accent); color: white; }
     .btn.secondary { background: rgba(0,122,255,0.1); color: var(--accent); }
-
-    .temp-value { font-size: 72px; font-weight: 800; margin: 0; background: linear-gradient(135deg, var(--accent), var(--accent-light));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .temp-value {
+      font-size: 72px; font-weight: 800; margin: 0;
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
     .temp-meta { color: gray; }
-
-    /* Ladeoverlay */
     #overlay {
       display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
       color: white; font-size: 18px; justify-content: center; align-items: center;
       z-index: 2000; backdrop-filter: blur(4px);
     }
-
-    /* Statusfarben */
     .status-connected { color: var(--success); font-weight: 600; }
     .status-disconnected { color: var(--error); font-weight: 600; }
-
   </style>
 </head>
 <body>
@@ -75,7 +70,7 @@
 
   <main>
     <section class="card">
-      <div class="temp-container" style="text-align:center;">
+      <div style="text-align:center;">
         <div class="temp-value" id="tempValue">--°C</div>
         <div class="temp-meta">Letzte Aktualisierung: <span id="lastUpdate">—</span></div>
       </div>
@@ -123,18 +118,37 @@
     }
 
     connectBtn.addEventListener('click', async () => {
+      if (!navigator.bluetooth) {
+        alert("❌ Dein Browser unterstützt kein WebBluetooth.\nBitte verwende Chrome, Edge oder Bluefy.");
+        return;
+      }
+
       try {
         showOverlay(true);
-        const opts = { filters: [{ services: [SERVICE_UUID] }], optionalServices: [SERVICE_UUID] };
+
+        // ✅ Wichtig: Alle Geräte akzeptieren, um Filterprobleme zu vermeiden
+        const opts = {
+          acceptAllDevices: true,
+          optionalServices: [SERVICE_UUID]
+        };
+
         device = await navigator.bluetooth.requestDevice(opts);
         deviceNameEl.textContent = device.name || 'ESP32_Temp';
+
         const server = await device.gatt.connect();
         service = await server.getPrimaryService(SERVICE_UUID);
         characteristic = await service.getCharacteristic(CHAR_TEMP_UUID);
+
         updateConnectionStatus(true);
         startNotifications();
+
+        device.addEventListener('gattserverdisconnected', () => {
+          updateConnectionStatus(false);
+        });
+
       } catch (e) {
-        alert('Fehler beim Verbinden: ' + e);
+        console.error('Verbindungsfehler:', e);
+        alert('⚠️ Verbindung fehlgeschlagen oder abgebrochen.\n' + e);
         updateConnectionStatus(false);
       } finally {
         showOverlay(false);
@@ -161,7 +175,7 @@
     }
 
     notifyToggle.addEventListener('click', async () => {
-      if (!characteristic) return alert('Keine Verbindung.');
+      if (!characteristic) return alert('Keine aktive Verbindung.');
       notifying ? await stopNotifications() : await startNotifications();
     });
 
@@ -178,7 +192,7 @@
         const devices = await navigator.bluetooth.getDevices();
         if (devices.length > 0) {
           device = devices[0];
-          deviceNameEl.textContent = device.name;
+          deviceNameEl.textContent = device.name || 'ESP32_TempSim';
           const server = await device.gatt.connect();
           service = await server.getPrimaryService(SERVICE_UUID);
           characteristic = await service.getCharacteristic(CHAR_TEMP_UUID);
@@ -190,7 +204,7 @@
       }
     });
 
-    // 🔄 Service Worker für PWA
+    // 🔄 Service Worker Registrierung
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').then(() => console.log('Service Worker aktiv'));
     }
