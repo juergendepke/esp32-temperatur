@@ -1,10 +1,11 @@
-// Device Manager für BLE Geräte
+// Device Manager für BLE Geräte mit AUTOMATISCHEM SCAN
 class DeviceManager {
     constructor() {
         this.connectedDevices = new Map();
         this.availableDevices = new Map();
         this.eventListeners = new Map();
         this.isScanning = false;
+        this.currentScan = null;
         
         // BLE UUIDs
         this.SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0';
@@ -42,11 +43,11 @@ class DeviceManager {
         }
     }
     
-    // Scan für verfügbare Geräte - KORRIGIERTE VERSION
-    async startScan(duration = 10) {
+    // AUTOMATISCHER SCAN - Hauptfunktion
+    async startAutoScan(duration = 15) {
         if (this.isScanning) {
-            console.log('Scan läuft bereits');
-            return;
+            console.log('🔍 Scan läuft bereits');
+            return this.availableDevices;
         }
         
         try {
@@ -54,130 +55,102 @@ class DeviceManager {
             this.availableDevices.clear();
             this.emit('scanStarted');
             
-            console.log(`Starte BLE Scan für ${duration} Sekunden...`);
+            console.log(`🔄 Starte AUTO-SCAN für ${duration} Sekunden...`);
 
-            // VERBESSERTE SCAN METHODE
-            const options = {
-                acceptAllDevices: true,  // Alle Geräte anzeigen
-                optionalServices: [this.SERVICE_UUID]  // Unser Service
-            };
-
-            console.log('🔍 Scanne nach BLE Geräten...');
-
-            // Timeout für Scan
-            const scanTimeout = setTimeout(() => {
-                this.stopScan();
-            }, duration * 1000);
-
-            try {
-                // Direkt requestDevice aufrufen - das zeigt den System-Dialog
-                const device = await navigator.bluetooth.requestDevice(options);
-                
-                // Wenn ein Gerät ausgewählt wurde
-                if (device) {
-                    console.log('Gerät ausgewählt:', device.name, device.id);
-                    this.availableDevices.set(device.id, device);
-                    clearTimeout(scanTimeout);
-                    this.isScanning = false;
-                    
-                    const devices = Array.from(this.availableDevices.values());
-                    console.log(`Scan abgeschlossen. ${devices.length} Geräte gefunden.`);
-                    this.emit('scanStopped', devices);
-                }
-            } catch (error) {
-                // User hat abgebrochen oder Fehler
-                if (error.name !== 'NotFoundError') {
-                    console.error('Scan Fehler:', error);
-                }
-                clearTimeout(scanTimeout);
-                this.isScanning = false;
-                this.emit('scanStopped', []);
-            }
-            
-        } catch (error) {
-            console.error('Scan Fehler:', error);
-            this.isScanning = false;
-            this.emit('scanStopped', []);
-            throw error;
-        }
-    }
-
-    // Alternative Scan-Methode mit manueller Geräteauswahl
-    async startAdvancedScan(duration = 10) {
-        if (this.isScanning) {
-            console.log('Scan läuft bereits');
-            return;
-        }
-
-        try {
-            this.isScanning = true;
-            this.availableDevices.clear();
-            this.emit('scanStarted');
-
-            console.log(`Starte erweiterten BLE Scan für ${duration} Sekunden...`);
-
-            // Verwende die zuverlässigere Methode
-            const devices = await this.discoverDevices(duration);
-            
-            this.isScanning = false;
-            this.emit('scanStopped', devices);
-            
-            return devices;
-
-        } catch (error) {
-            console.error('Erweiterter Scan Fehler:', error);
-            this.isScanning = false;
-            this.emit('scanStopped', []);
-            throw error;
-        }
-    }
-
-    // Hilfsmethode zum Geräte-Discovery
-    async discoverDevices(duration) {
-        return new Promise((resolve, reject) => {
-            const foundDevices = [];
+            const foundDevices = new Map();
             let scanTimer;
+            let scanStartTime = Date.now();
 
-            const scanOptions = {
-                acceptAllDevices: true,
-                optionalServices: [this.SERVICE_UUID]
+            // Event Listener für gefundene Geräte
+            const onAdvertisementReceived = (event) => {
+                const device = event.device;
+                
+                // Filtere nur unsere ESP32 Geräte
+                if (device.name && (
+                    device.name.includes('Temp-') || 
+                    device.name.includes('Volt-') || 
+                    device.name.includes('Multi-')
+                )) {
+                    if (!foundDevices.has(device.id)) {
+                        console.log(`📱 Gefunden: ${device.name} (RSSI: ${event.rssi})`);
+                        foundDevices.set(device.id, {
+                            id: device.id,
+                            name: device.name,
+                            device: device,
+                            rssi: event.rssi,
+                            timestamp: Date.now()
+                        });
+                        
+                        // Sofortige UI-Aktualisierung
+                        this.emit('deviceFound', Array.from(foundDevices.values()));
+                    }
+                }
             };
 
-            console.log('Öffne Geräteauswahl...');
+            // BLE Scan starten
+            console.log('📡 Starte BLE Advertisement Scan...');
+            await navigator.bluetooth.requestLEScan({
+                acceptAllAdvertisements: true
+            });
 
-            // Zeige System-Dialog für Geräteauswahl
-            navigator.bluetooth.requestDevice(scanOptions)
-                .then(device => {
-                    if (device) {
-                        console.log('✅ Gerät gefunden:', device.name);
-                        foundDevices.push(device);
-                    }
-                    resolve(foundDevices);
-                })
-                .catch(error => {
-                    if (error.name === 'NotFoundError') {
-                        console.log('❌ Kein Gerät ausgewählt');
-                        resolve([]);
-                    } else {
-                        reject(error);
-                    }
-                });
+            // Event Listener registrieren
+            navigator.bluetooth.addEventListener('advertisementreceived', onAdvertisementReceived);
 
-            // Timeout falls nötig
-            scanTimer = setTimeout(() => {
-                resolve(foundDevices);
+            // Scan-Dauer Timer
+            scanTimer = setTimeout(async () => {
+                await this.stopAutoScan();
+                navigator.bluetooth.removeEventListener('advertisementreceived', onAdvertisementReceived);
+                
+                const devices = Array.from(foundDevices.values());
+                const scanTime = ((Date.now() - scanStartTime) / 1000).toFixed(1);
+                
+                console.log(`✅ AUTO-SCAN beendet: ${devices.length} Geräte in ${scanTime}s gefunden`);
+                this.emit('scanStopped', devices);
+                
             }, duration * 1000);
-        });
+
+            // Speichere aktuellen Scan für Stopp-Funktion
+            this.currentScan = {
+                timer: scanTimer,
+                eventListener: onAdvertisementReceived,
+                foundDevices: foundDevices
+            };
+
+            return Array.from(foundDevices.values());
+
+        } catch (error) {
+            console.error('❌ AUTO-SCAN fehlgeschlagen:', error);
+            this.isScanning = false;
+            this.emit('scanStopped', []);
+            
+            if (error.name === 'NotSupportedError') {
+                throw new Error('Automatischer Scan wird vom Browser nicht unterstützt. Verwende Chrome oder Edge.');
+            } else if (error.name === 'SecurityError') {
+                throw new Error('Bluetooth-Zugriff wurde verweigert. Bitte erlauben Sie den Zugriff.');
+            } else {
+                throw new Error(`Scan fehlgeschlagen: ${error.message}`);
+            }
+        }
     }
     
-    async stopScan() {
+    // Scan stoppen
+    async stopAutoScan() {
         if (!this.isScanning) return;
         
         try {
+            if (this.currentScan) {
+                clearTimeout(this.currentScan.timer);
+                navigator.bluetooth.removeEventListener('advertisementreceived', this.currentScan.eventListener);
+                this.currentScan = null;
+            }
+            
+            await navigator.bluetooth.stopLEScan();
             this.isScanning = false;
-            console.log('Scan gestoppt');
+            console.log('⏹️ AUTO-SCAN gestoppt');
+            
         } catch (error) {
-            console.error('Fehler beim Scan Stoppen:', error);
+            console.error('Fehler beim Scan-Stopp:', error);
+            this.isScanning = false;
         }
     }
     
@@ -189,9 +162,9 @@ class DeviceManager {
         }
         
         try {
-            console.log('Verbinde mit Gerät:', device.name);
+            console.log('🔗 Verbinde mit Gerät:', device.name);
             
-            const server = await device.gatt.connect();
+            const server = await device.device.gatt.connect();
             const service = await server.getPrimaryService(this.SERVICE_UUID);
             
             // Geräteinformationen lesen
@@ -204,19 +177,18 @@ class DeviceManager {
             this.connectedDevices.set(deviceInfo.id, deviceInfo);
             
             // Disconnect Handler
-            device.addEventListener('gattserverdisconnected', () => {
+            device.device.addEventListener('gattserverdisconnected', () => {
                 this.onDeviceDisconnected(deviceInfo.id);
             });
             
-            console.log('Gerät erfolgreich verbunden:', deviceInfo);
+            console.log('✅ Gerät erfolgreich verbunden:', deviceInfo);
             this.emit('deviceConnected', deviceInfo);
             
             return deviceInfo;
             
         } catch (error) {
-            console.error('Verbindungsfehler:', error);
+            console.error('❌ Verbindungsfehler:', error);
             
-            // Fehlerbehandlung verbessern
             if (error.toString().includes('GATT Server is disconnected')) {
                 throw new Error('Gerät nicht erreichbar. Bitte stelle sicher, dass der ESP32 eingeschaltet ist.');
             } else if (error.toString().includes('Characteristic')) {
@@ -251,14 +223,14 @@ class DeviceManager {
                 name: device.name,
                 type: deviceType,
                 interval: interval,
-                device: device,
+                device: device.device,
                 service: service,
                 lastUpdate: new Date().toLocaleTimeString(),
                 temperature: null,
                 voltage: null
             };
         } catch (error) {
-            console.error('Fehler beim Lesen der Geräteinfo:', error);
+            console.error('❌ Fehler beim Lesen der Geräteinfo:', error);
             throw new Error('Gerät unterstützt nicht das benötigte Service-Format.');
         }
     }
@@ -266,7 +238,7 @@ class DeviceManager {
     async setupNotifications(service, deviceInfo) {
         const decoder = new TextDecoder();
         
-        // Temperatur Notifications (falls unterstützt)
+        // Temperatur Notifications
         if (deviceInfo.type === this.DEVICE_TYPE.TEMPERATURE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
             try {
                 const tempChar = await service.getCharacteristic(this.CHAR_TEMP_UUID);
@@ -286,7 +258,7 @@ class DeviceManager {
             }
         }
         
-        // Spannungs Notifications (falls unterstützt)
+        // Spannungs Notifications
         if (deviceInfo.type === this.DEVICE_TYPE.VOLTAGE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
             try {
                 const voltageChar = await service.getCharacteristic(this.CHAR_VOLTAGE_UUID);
@@ -308,7 +280,7 @@ class DeviceManager {
     }
     
     onDeviceDisconnected(deviceId) {
-        console.log('Gerät getrennt:', deviceId);
+        console.log('🔌 Gerät getrennt:', deviceId);
         this.connectedDevices.delete(deviceId);
         this.emit('deviceDisconnected', deviceId);
     }
@@ -319,7 +291,7 @@ class DeviceManager {
             try {
                 await deviceInfo.device.gatt.disconnect();
             } catch (error) {
-                console.warn('Fehler beim Trennen:', error);
+                console.warn('Warnung beim Trennen:', error);
             }
             this.connectedDevices.delete(deviceId);
             this.emit('deviceDisconnected', deviceId);
@@ -343,10 +315,10 @@ class DeviceManager {
             const encoder = new TextEncoder();
             await intervalChar.writeValue(encoder.encode(interval.toString()));
             deviceInfo.interval = interval;
-            console.log(`Update-Intervall für ${deviceId} auf ${interval}s gesetzt`);
+            console.log(`⏱️ Update-Intervall für ${deviceId} auf ${interval}s gesetzt`);
             return true;
         } catch (error) {
-            console.error('Fehler beim Setzen des Intervalls:', error);
+            console.error('❌ Fehler beim Setzen des Intervalls:', error);
             throw error;
         }
     }
@@ -366,5 +338,9 @@ class DeviceManager {
     
     getAvailableDevices() {
         return Array.from(this.availableDevices.values());
+    }
+    
+    isScanningActive() {
+        return this.isScanning;
     }
 }
