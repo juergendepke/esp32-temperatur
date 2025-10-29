@@ -3,7 +3,6 @@ class MultiSensorApp {
     constructor() {
         this.deviceManager = new DeviceManager();
         this.isScanning = false;
-        this.autoRefresh = true;
         
         this.initializeApp();
     }
@@ -80,6 +79,7 @@ class MultiSensorApp {
                 throw new Error('Web Bluetooth API nicht unterstützt');
             }
             
+            // Teste ob Bluetooth verfügbar ist
             const available = await navigator.bluetooth.getAvailability();
             document.getElementById('bleStatus').textContent = 
                 available ? 'Verfügbar' : 'Nicht verfügbar';
@@ -89,6 +89,9 @@ class MultiSensorApp {
             if (!available) {
                 document.getElementById('scanBtn').disabled = true;
                 document.getElementById('scanBtn').textContent = '❌ BLE nicht verfügbar';
+                this.showMessage('❌ Bluetooth ist auf diesem Gerät nicht verfügbar oder deaktiviert.', 'error');
+            } else {
+                console.log('✅ Bluetooth ist verfügbar');
             }
         } catch (error) {
             console.error('Bluetooth Check fehlgeschlagen:', error);
@@ -96,6 +99,7 @@ class MultiSensorApp {
             document.getElementById('bleStatus').className = 'status-unavailable';
             document.getElementById('scanBtn').disabled = true;
             document.getElementById('scanBtn').textContent = '❌ BLE Fehler';
+            this.showMessage('❌ Bluetooth-Fehler: ' + error.message, 'error');
         }
     }
     
@@ -104,42 +108,71 @@ class MultiSensorApp {
             await this.deviceManager.stopScan();
         } else {
             const duration = parseInt(document.getElementById('scanDurationSlider').value);
-            await this.deviceManager.startScan(duration);
+            await this.startDeviceScan(duration);
+        }
+    }
+
+    // VERBESSERTE SCAN-METHODE
+    async startDeviceScan(duration) {
+        this.isScanning = true;
+        this.onScanStarted();
+        
+        try {
+            console.log('Starte Gerätescan...');
+            
+            // Verwende die zuverlässige Scan-Methode
+            const devices = await this.deviceManager.startAdvancedScan(duration);
+            
+            if (devices.length > 0) {
+                console.log(`✅ ${devices.length} Gerät(e) gefunden`);
+                this.showDeviceModal(devices);
+            } else {
+                console.log('❌ Keine Geräte gefunden');
+                this.showMessage('❌ Keine kompatiblen Geräte gefunden. Stellen Sie sicher, dass der ESP32 eingeschaltet ist und advertising.', 'error');
+            }
+            
+        } catch (error) {
+            console.error('Scan fehlgeschlagen:', error);
+            
+            if (error.name === 'NotFoundError') {
+                this.showMessage('❌ Kein Gerät ausgewählt oder gefunden.', 'error');
+            } else if (error.name === 'SecurityError') {
+                this.showMessage('❌ Bluetooth-Zugriff wurde verweigert. Bitte erlauben Sie den Zugriff in den Browsereinstellungen.', 'error');
+            } else if (error.name === 'NotSupportedError') {
+                this.showMessage('❌ Web Bluetooth wird von diesem Browser nicht unterstützt. Verwenden Sie Chrome, Edge oder Safari.', 'error');
+            } else {
+                this.showMessage('❌ Scan fehlgeschlagen: ' + error.message, 'error');
+            }
+        } finally {
+            this.isScanning = false;
+            this.onScanStopped();
         }
     }
     
     onScanStarted() {
-        this.isScanning = true;
         document.getElementById('scanBtn').textContent = '⏹️ Scan Stoppen';
         document.getElementById('scanBtn').classList.add('pulse');
-        this.showLoading('Suche nach Sensoren...');
+        this.showLoading('Suche nach Sensoren...\nEs öffnet sich ein System-Dialog.');
     }
     
-    onScanStopped(devices) {
-        this.isScanning = false;
+    onScanStopped() {
         document.getElementById('scanBtn').textContent = '🔍 Scan Starten';
         document.getElementById('scanBtn').classList.remove('pulse');
         this.hideLoading();
         
         document.getElementById('lastScanTime').textContent = new Date().toLocaleTimeString();
-        
-        if (devices.length > 0) {
-            this.showDeviceModal(devices);
-        } else {
-            this.showMessage('❌ Keine Geräte gefunden', 'error');
-        }
     }
     
     onDeviceConnected(device) {
         console.log('Gerät verbunden:', device);
         this.updateDisplay();
-        this.showMessage(`✅ ${device.name} verbunden`, 'success');
+        this.showMessage(`✅ "${device.name}" erfolgreich verbunden`, 'success');
     }
     
     onDeviceDisconnected(deviceId) {
         console.log('Gerät getrennt:', deviceId);
         this.updateDisplay();
-        this.showMessage(`❌ ${deviceId} getrennt`, 'error');
+        this.showMessage(`❌ "${deviceId}" getrennt`, 'error');
     }
     
     onDeviceUpdated(deviceId, data) {
@@ -150,27 +183,32 @@ class MultiSensorApp {
         const deviceList = document.getElementById('deviceList');
         deviceList.innerHTML = '';
         
-        devices.forEach(device => {
-            const deviceElement = document.createElement('div');
-            deviceElement.className = 'device-item';
-            deviceElement.innerHTML = `
-                <div class="device-icon">${this.getDeviceIcon(device)}</div>
-                <div class="device-info">
-                    <div class="device-name">${device.name}</div>
-                    <div class="device-id">${device.id}</div>
-                </div>
-                <button class="btn primary small connect-btn" data-device-id="${device.id}">
-                    Verbinden
-                </button>
-            `;
-            
-            deviceElement.querySelector('.connect-btn').addEventListener('click', async (e) => {
-                e.stopPropagation();
-                await this.connectToDevice(device);
+        if (devices.length === 0) {
+            deviceList.innerHTML = '<div class="no-devices"><p>❌ Keine Geräte gefunden</p></div>';
+        } else {
+            devices.forEach(device => {
+                const deviceElement = document.createElement('div');
+                deviceElement.className = 'device-item';
+                deviceElement.innerHTML = `
+                    <div class="device-icon">${this.getDeviceIcon(device)}</div>
+                    <div class="device-info">
+                        <div class="device-name">${device.name || 'Unbenanntes Gerät'}</div>
+                        <div class="device-id">${device.id}</div>
+                        <div class="device-status status-disconnected">Nicht verbunden</div>
+                    </div>
+                    <button class="btn primary small connect-btn" data-device-id="${device.id}">
+                        Verbinden
+                    </button>
+                `;
+                
+                deviceElement.querySelector('.connect-btn').addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    await this.connectToDevice(device);
+                });
+                
+                deviceList.appendChild(deviceElement);
             });
-            
-            deviceList.appendChild(deviceElement);
-        });
+        }
         
         document.getElementById('deviceModal').classList.remove('hidden');
     }
@@ -180,14 +218,15 @@ class MultiSensorApp {
     }
     
     getDeviceIcon(device) {
-        if (device.name.includes('Temp')) return '🌡️';
-        if (device.name.includes('Volt')) return '⚡';
-        if (device.name.includes('Multi')) return '🔀';
+        const name = device.name || '';
+        if (name.includes('Temp')) return '🌡️';
+        if (name.includes('Volt')) return '⚡';
+        if (name.includes('Multi')) return '🔀';
         return '📱';
     }
     
     async connectToDevice(device) {
-        this.showLoading(`Verbinde mit ${device.name}...`);
+        this.showLoading(`Verbinde mit "${device.name}"...`);
         this.hideDeviceModal();
         
         try {
@@ -201,10 +240,16 @@ class MultiSensorApp {
     }
     
     async disconnectAllDevices() {
-        if (confirm('Alle Geräte trennen?')) {
+        const connectedDevices = this.deviceManager.getConnectedDevices();
+        if (connectedDevices.length === 0) {
+            this.showMessage('❌ Keine Geräte verbunden', 'error');
+            return;
+        }
+        
+        if (confirm(`Möchten Sie wirklich alle ${connectedDevices.length} Geräte trennen?`)) {
             await this.deviceManager.disconnectAllDevices();
             this.updateDisplay();
-            this.showMessage('✅ Alle Geräte getrennt', 'success');
+            this.showMessage(`✅ Alle Geräte getrennt`, 'success');
         }
     }
     
@@ -217,7 +262,7 @@ class MultiSensorApp {
             return;
         }
         
-        this.showLoading(`Setze Intervall auf ${interval}s...`);
+        this.showLoading(`Setze Intervall auf ${interval}s für ${connectedDevices.length} Gerät(e)...`);
         
         try {
             const promises = connectedDevices.map(device => 
@@ -261,7 +306,7 @@ class MultiSensorApp {
         if (devices.length === 0) {
             container.innerHTML = `
                 <div class="no-devices">
-                    <p>🔍 Keine Geräte gefunden</p>
+                    <p>🔍 Keine Geräte verbunden</p>
                     <p class="hint">Klicke auf "Scan Starten" um nach Sensoren zu suchen</p>
                 </div>
             `;
@@ -286,7 +331,10 @@ class MultiSensorApp {
         container.querySelectorAll('.disconnect-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 const deviceId = e.target.dataset.deviceId;
-                await this.deviceManager.disconnectDevice(deviceId);
+                const device = this.deviceManager.getConnectedDevice(deviceId);
+                if (device && confirm(`"${device.name}" trennen?`)) {
+                    await this.deviceManager.disconnectDevice(deviceId);
+                }
             });
         });
     }
@@ -400,12 +448,19 @@ class MultiSensorApp {
     }
     
     showMessage(message, type = 'info') {
-        // Einfache Alert-Implementation
-        alert(message);
+        // Verwende Browser-Alert für einfache Fehlermeldungen
+        if (type === 'error') {
+            alert('❌ ' + message);
+        } else if (type === 'success') {
+            alert('✅ ' + message);
+        } else {
+            alert('ℹ️ ' + message);
+        }
     }
 }
 
 // App starten wenn DOM geladen
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new MultiSensorApp();
+    console.log('✅ MultiSensor App gestartet');
 });
