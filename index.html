@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Temperatur Monitor</title>
+    <meta name="theme-color" content="#34C759">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌡️</text></svg>">
+    <style>
+        :root {
+            --primary-color: #34C759;
+            --primary-dark: #2A9D46;
+            --background-light: #F2F2F7;
+            --background-dark: #1C1C1E;
+            --card-light: #FFFFFF;
+            --card-dark: #2C2C2E;
+            --text-light: #000000;
+            --text-dark: #FFFFFF;
+            --danger-color: #FF3B30;
+            --warning-color: #FF9500;
+            --connected-color: #34C759;
+            --disconnected-color: #FF3B30;
+            --scanning-color: #007AFF;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        body {
+            background-color: var(--background-light);
+            color: var(--text-light);
+            transition: background-color 0.3s, color 0.3s;
+            overflow-x: hidden;
+        }
+
+        body.dark-mode {
+            background-color: var(--background-dark);
+            color: var(--text-dark);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        body.dark-mode header {
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .btn-outline:hover {
+            background-color: rgba(52, 199, 89, 0.1);
+        }
+
+        .btn-scan {
+            background-color: var(--scanning-color);
+        }
+
+        .btn-scan.scanning {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        .devices-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .device-card {
+            background-color: var(--card-light);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 2px solid transparent;
+        }
+
+        body.dark-mode .device-card {
+            background-color: var(--card-dark);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .device-card.connected {
+            border-color: var(--connected-color);
+        }
+
+        .device-card.disconnected {
+            border-color: var(--disconnected-color);
+        }
+
+        .device-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+        }
+
+        body.dark-mode .device-card:hover {
+            box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+        }
+
+        .device-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .device-name {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .device-status {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            background-color: rgba(52, 199, 89, 0.2);
+            color: var(--connected-color);
+        }
+
+        .device-status.disconnected {
+            background-color: rgba(255, 59, 48, 0.2);
+            color: var(--disconnected-color);
+        }
+
+        .device-status.scanning {
+            background-color: rgba(0, 122, 255, 0.2);
+            color: var(--scanning-color);
+        }
+
+        .temperature-display {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .temperature-value {
+            font-size: 48px;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .temperature-unit {
+            font-size: 24px;
+            margin-left: 5px;
+            color: #8E8E93;
+        }
+
+        .battery-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: rgba(0,0,0,0.05);
+            border-radius: 12px;
+            padding: 12px 15px;
+            margin-top: 15px;
+        }
+
+        body.dark-mode .battery-info {
+            background-color: rgba(255,255,255,0.05);
+        }
+
+        .battery-info.low {
+            background-color: rgba(255, 59, 48, 0.1);
+            color: var(--danger-color);
+        }
+
+        .battery-label {
+            font-size: 14px;
+            color: #8E8E93;
+        }
+
+        .battery-value {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .battery-icon {
+            font-size: 20px;
+        }
+
+        .last-update {
+            font-size: 12px;
+            color: #8E8E93;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(0,0,0,0.1);
+            color: #8E8E93;
+            font-size: 12px;
+        }
+
+        body.dark-mode .footer {
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .no-devices {
+            text-align: center;
+            padding: 40px 20px;
+            color: #8E8E93;
+        }
+
+        .device-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 15px 0;
+            border: 1px solid rgba(0,0,0,0.1);
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        body.dark-mode .device-list {
+            border-color: rgba(255,255,255,0.1);
+        }
+
+        .device-item {
+            padding: 10px;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        body.dark-mode .device-item {
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .device-item:last-child {
+            border-bottom: none;
+        }
+
+        .device-item:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+
+        body.dark-mode .device-item:hover {
+            background-color: rgba(255,255,255,0.05);
+        }
+
+        .device-rssi {
+            font-size: 12px;
+            color: #8E8E93;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: var(--card-light);
+            border-radius: 16px;
+            padding: 20px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        body.dark-mode .modal-content {
+            background-color: var(--card-dark);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #8E8E93;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #8E8E93;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #C7C7CC;
+            background-color: var(--background-light);
+            color: var(--text-light);
+            font-size: 16px;
+        }
+
+        body.dark-mode .form-input {
+            background-color: var(--background-dark);
+            border-color: #38383A;
+            color: var(--text-dark);
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 600px) {
+            .devices-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 15px;
+            }
+            
+            .temperature-value {
+                font-size: 40px;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ESP32 Temperatur Monitor</h1>
+            <div class="controls">
+                <button class="btn btn-outline" id="themeToggle">Dunkelmodus</button>
+                <button class="btn btn-scan" id="scanBtn">ESP32 Scannen</button>
+                <button class="btn" id="disconnectBtn">Alle trennen</button>
+            </div>
+        </header>
+
+        <main>
+            <div class="devices-grid" id="devicesContainer">
+                <!-- Geräte werden hier dynamisch eingefügt -->
+            </div>
+            
+            <div class="no-devices" id="noDevicesMessage" style="display: none;">
+                <p>Keine Geräte verbunden. Scannen Sie nach ESP32 Sensoren.</p>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>Verwenden Sie Bluefy, um eine Verbindung zu Ihren ESP32-Geräten herzustellen</p>
+        </footer>
+    </div>
+
+    <!-- Modal für Gerätescan -->
+    <div class="modal" id="scanModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">ESP32 Sensoren suchen</h2>
+                <button class="close-modal" id="closeScanModal">&times;</button>
+            </div>
+            <div class="form-group">
+                <p>Gefundene ESP32 Geräte:</p>
+                <div class="device-list" id="deviceList">
+                    <!-- Gefundene Geräte werden hier angezeigt -->
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" id="cancelScan">Abbrechen</button>
+                <button class="btn" id="rescanBtn">Erneut scannen</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Bluetooth Service und Characteristic UUIDs
+        const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+        const CHARACTERISTIC_UUID_TEMP = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+        const CHARACTERISTIC_UUID_BATT = 'beb5483e-36e1-4688-b7f5-ea07361b26a9';
+        const CHARACTERISTIC_UUID_DEVICE = 'beb5483e-36e1-4688-b7f5-ea07361b26aa';
+
+        // App-Daten und Zustand
+        const appState = {
+            devices: [],
+            darkMode: false,
+            isScanning: false
+        };
+
+        // DOM-Elemente
+        const devicesContainer = document.getElementById('devicesContainer');
+        const noDevicesMessage = document.getElementById('noDevicesMessage');
+        const themeToggle = document.getElementById('themeToggle');
+        const scanBtn = document.getElementById('scanBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const scanModal = document.getElementById('scanModal');
+        const closeScanModal = document.getElementById('closeScanModal');
+        const cancelScan = document.getElementById('cancelScan');
+        const rescanBtn = document.getElementById('rescanBtn');
+        const deviceList = document.getElementById('deviceList');
+
+        // Bluetooth Variablen
+        let discoveredDevices = [];
+
+        // Funktionen
+        function toggleTheme() {
+            appState.darkMode = !appState.darkMode;
+            document.body.classList.toggle('dark-mode', appState.darkMode);
+            themeToggle.textContent = appState.darkMode ? 'Hellmodus' : 'Dunkelmodus';
+            saveToLocalStorage();
+        }
+
+        async function startScanning() {
+            if (appState.isScanning) return;
+            
+            try {
+                appState.isScanning = true;
+                scanBtn.classList.add('scanning');
+                scanBtn.innerHTML = '<span class="loading-spinner"></span> Scannen...';
+                
+                discoveredDevices = [];
+                deviceList.innerHTML = '<div class="no-devices">Scanne nach ESP32 Geräten...</div>';
+                
+                scanModal.style.display = 'flex';
+                
+                // Prüfen ob Bluetooth verfügbar ist
+                if (!navigator.bluetooth) {
+                    throw new Error('Bluetooth wird in diesem Browser nicht unterstützt. Verwenden Sie Bluefy auf iOS.');
+                }
+                
+                // Verfügbarkeit prüfen
+                const available = await navigator.bluetooth.getAvailability();
+                if (!available) {
+                    throw new Error('Bluetooth ist nicht verfügbar. Stellen Sie sicher, dass Bluetooth aktiviert ist.');
+                }
+                
+                // Nach Geräten scannen
+                console.log('Starte Bluetooth Scan...');
+                
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [
+                        { services: [SERVICE_UUID] },
+                        { namePrefix: 'ESP32' }
+                    ],
+                    optionalServices: [SERVICE_UUID]
+                });
+                
+                if (device) {
+                    await connectToDevice(device);
+                }
+                
+            } catch (error) {
+                console.error('Scan Fehler:', error);
+                alert('Fehler beim Scannen: ' + error.message);
+            } finally {
+                stopScanning();
+            }
+        }
+
+        function stopScanning() {
+            appState.isScanning = false;
+            scanBtn.classList.remove('scanning');
+            scanBtn.textContent = 'ESP32 Scannen';
+        }
+
+        async function connectToDevice(device) {
+            try {
+                console.log('Verbinde mit Gerät:', device.name);
+                
+                // Device zu appState hinzufügen
+                const newDevice = {
+                    id: device.id,
+                    name: device.name || 'ESP32 Sensor',
+                    connected: false,
+                    temperature: '--',
+                    batteryVoltage: '--',
+                    lastUpdate: null,
+                    gattServer: null,
+                    temperatureCharacteristic: null,
+                    batteryCharacteristic: null
+                };
+                
+                // Prüfen ob Gerät bereits existiert
+                const existingIndex = appState.devices.findIndex(d => d.id === device.id);
+                if (existingIndex >= 0) {
+                    appState.devices[existingIndex] = newDevice;
+                } else {
+                    appState.devices.push(newDevice);
+                }
+                
+                renderDevices();
+                
+                // GATT Server verbinden
+                const server = await device.gatt.connect();
+                newDevice.gattServer = server;
+                newDevice.connected = true;
+                
+                // Service erhalten
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                
+                // Characteristics erhalten
+                try {
+                    newDevice.temperatureCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID_TEMP);
+                    newDevice.batteryCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID_BATT);
+                    
+                    // Initiale Werte lesen
+                    await readDeviceValues(newDevice);
+                    
+                    // Notifications aktivieren
+                    await newDevice.temperatureCharacteristic.startNotifications();
+                    await newDevice.batteryCharacteristic.startNotifications();
+                    
+                    // Event Listener für Updates
+                    newDevice.temperatureCharacteristic.addEventListener('characteristicvaluechanged', 
+                        (event) => handleTemperatureUpdate(newDevice, event));
+                    newDevice.batteryCharacteristic.addEventListener('characteristicvaluechanged', 
+                        (event) => handleBatteryUpdate(newDevice, event));
+                        
+                } catch (charError) {
+                    console.warn('Konnte nicht alle Characteristics lesen:', charError);
+                }
+                
+                // Device disconnected Event
+                device.addEventListener('gattserverdisconnected', () => {
+                    handleDeviceDisconnected(newDevice);
+                });
+                
+                console.log('Erfolgreich verbunden mit:', device.name);
+                scanModal.style.display = 'none';
+                renderDevices();
+                saveToLocalStorage();
+                
+            } catch (error) {
+                console.error('Verbindungsfehler:', error);
+                alert('Konnte nicht mit Gerät verbinden: ' + error.message);
+                handleDeviceDisconnected(newDevice);
+            }
+        }
+
+        async function readDeviceValues(device) {
+            try {
+                if (device.temperatureCharacteristic) {
+                    const tempValue = await device.temperatureCharacteristic.readValue();
+                    const tempText = new TextDecoder().decode(tempValue);
+                    device.temperature = parseFloat(tempText) || '--';
+                }
+                
+                if (device.batteryCharacteristic) {
+                    const battValue = await device.batteryCharacteristic.readValue();
+                    const battText = new TextDecoder().decode(battValue);
+                    device.batteryVoltage = parseFloat(battText) || '--';
+                }
+                
+                device.lastUpdate = new Date();
+                renderDevices();
+                
+            } catch (error) {
+                console.error('Fehler beim Lesen der Werte:', error);
+            }
+        }
+
+        function handleTemperatureUpdate(device, event) {
+            const value = event.target.value;
+            const text = new TextDecoder().decode(value);
+            device.temperature = parseFloat(text) || '--';
+            device.lastUpdate = new Date();
+            renderDevices();
+        }
+
+        function handleBatteryUpdate(device, event) {
+            const value = event.target.value;
+            const text = new TextDecoder().decode(value);
+            device.batteryVoltage = parseFloat(text) || '--';
+            device.lastUpdate = new Date();
+            renderDevices();
+        }
+
+        function handleDeviceDisconnected(device) {
+            device.connected = false;
+            device.gattServer = null;
+            device.temperatureCharacteristic = null;
+            device.batteryCharacteristic = null;
+            console.log('Gerät getrennt:', device.name);
+            renderDevices();
+            saveToLocalStorage();
+        }
+
+        function createDeviceCard(device) {
+            const isLowBattery = device.batteryVoltage !== '--' && parseFloat(device.batteryVoltage) < 3.3;
+            const batteryClass = isLowBattery ? 'low' : '';
+            const statusClass = device.connected ? '' : 'disconnected';
+            const cardClass = device.connected ? 'connected' : 'disconnected';
+            
+            const lastUpdate = device.lastUpdate ? 
+                `Zuletzt: ${device.lastUpdate.toLocaleTimeString()}` : 
+                'Noch keine Daten';
+            
+            return `
+                <div class="device-card ${cardClass}" data-device-id="${device.id}">
+                    <div class="device-header">
+                        <div class="device-name">${device.name}</div>
+                        <div class="device-status ${statusClass}">
+                            ${device.connected ? 'Verbunden' : 'Getrennt'}
+                        </div>
+                    </div>
+                    <div class="temperature-display">
+                        <span class="temperature-value">${device.temperature}</span>
+                        <span class="temperature-unit">°C</span>
+                    </div>
+                    <div class="battery-info ${batteryClass}">
+                        <div>
+                            <div class="battery-label">Akkustand</div>
+                            <div class="battery-value">${device.batteryVoltage} V</div>
+                        </div>
+                        <div class="battery-icon">${isLowBattery ? '🔴' : '🔋'}</div>
+                    </div>
+                    <div class="last-update">${lastUpdate}</div>
+                </div>
+            `;
+        }
+
+        function renderDevices() {
+            if (appState.devices.length === 0) {
+                devicesContainer.style.display = 'none';
+                noDevicesMessage.style.display = 'block';
+                return;
+            }
+            
+            devicesContainer.style.display = 'grid';
+            noDevicesMessage.style.display = 'none';
+            
+            devicesContainer.innerHTML = '';
+            appState.devices.forEach(device => {
+                devicesContainer.innerHTML += createDeviceCard(device);
+            });
+        }
+
+        async function disconnectAllDevices() {
+            for (const device of appState.devices) {
+                if (device.connected && device.gattServer) {
+                    try {
+                        device.gattServer.disconnect();
+                    } catch (error) {
+                        console.error('Fehler beim Trennen:', error);
+                    }
+                }
+                device.connected = false;
+                device.gattServer = null;
+                device.temperatureCharacteristic = null;
+                device.batteryCharacteristic = null;
+            }
+            renderDevices();
+            saveToLocalStorage();
+        }
+
+        function saveToLocalStorage() {
+            const saveData = {
+                devices: appState.devices.map(device => ({
+                    id: device.id,
+                    name: device.name,
+                    // Speichere keine Live-Verbindungsdaten
+                })),
+                darkMode: appState.darkMode
+            };
+            localStorage.setItem('esp32Monitor', JSON.stringify(saveData));
+        }
+
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem('esp32Monitor');
+            if (saved) {
+                const data = JSON.parse(saved);
+                appState.devices = data.devices || [];
+                appState.darkMode = data.darkMode || false;
+                
+                document.body.classList.toggle('dark-mode', appState.darkMode);
+                themeToggle.textContent = appState.darkMode ? 'Hellmodus' : 'Dunkelmodus';
+            }
+        }
+
+        // Event Listeners
+        themeToggle.addEventListener('click', toggleTheme);
+        
+        scanBtn.addEventListener('click', startScanning);
+        
+        disconnectBtn.addEventListener('click', disconnectAllDevices);
+        
+        closeScanModal.addEventListener('click', () => {
+            scanModal.style.display = 'none';
+            stopScanning();
+        });
+        
+        cancelScan.addEventListener('click', () => {
+            scanModal.style.display = 'none';
+            stopScanning();
+        });
+        
+        rescanBtn.addEventListener('click', startScanning);
+        
+        // Klick außerhalb des Modals schließt es
+        window.addEventListener('click', (event) => {
+            if (event.target === scanModal) {
+                scanModal.style.display = 'none';
+                stopScanning();
+            }
+        });
+
+        // Initialisierung
+        function init() {
+            loadFromLocalStorage();
+            renderDevices();
+            
+            // Prüfe Bluetooth Verfügbarkeit
+            if (navigator.bluetooth) {
+                navigator.bluetooth.getAvailability().then(available => {
+                    if (!available) {
+                        scanBtn.disabled = true;
+                        scanBtn.title = 'Bluetooth ist nicht verfügbar';
+                    }
+                });
+            } else {
+                scanBtn.disabled = true;
+                scanBtn.title = 'Bluetooth API wird nicht unterstützt - verwenden Sie Bluefy auf iOS';
+                alert('Diese App benötigt Web Bluetooth API. Auf iOS bitte Bluefy Browser verwenden.');
+            }
+        }
+
+        // App starten
+        init();
+    </script>
+</body>
+</html>
