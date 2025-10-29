@@ -10,6 +10,7 @@
     <meta name="apple-mobile-web-app-title" content="Sensor Monitor">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌡️</text></svg>">
     <style>
+        /* Alle vorherigen CSS-Stile bleiben gleich */
         :root {
             --primary-color: #34C759;
             --primary-dark: #2A9D46;
@@ -611,7 +612,7 @@
 
         .setting-item {
             display: flex;
-            justify-content: between;
+            justify-content: space-between;
             align-items: center;
             padding: 12px 0;
             border-bottom: 1px solid rgba(0,0,0,0.1);
@@ -705,6 +706,33 @@
 
         input:checked + .slider:before {
             transform: translateX(22px);
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--card-dark);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            z-index: 3000;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: toastSlideIn 0.3s ease;
+        }
+
+        @keyframes toastSlideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
         }
     </style>
 </head>
@@ -895,9 +923,10 @@
             cancelScan.addEventListener('click', closeModal);
             rescanBtn.addEventListener('click', startScanning);
             
-            // Tab Navigation
+            // Tab Navigation - KORRIGIERT
             tabItems.forEach(tab => {
-                tab.addEventListener('click', () => {
+                tab.addEventListener('click', (e) => {
+                    e.preventDefault();
                     const tabName = tab.getAttribute('data-tab');
                     switchTab(tabName);
                 });
@@ -923,7 +952,8 @@
             
             // Update active tab
             tabItems.forEach(tab => {
-                tab.classList.toggle('active', tab.getAttribute('data-tab') === tabName);
+                const isActive = tab.getAttribute('data-tab') === tabName;
+                tab.classList.toggle('active', isActive);
             });
 
             // Tab-specific actions
@@ -935,7 +965,8 @@
                     showSettingsModal();
                     break;
                 case 'devices':
-                    // Already showing devices
+                    // Zeige die Geräteliste
+                    updateUI();
                     break;
             }
         }
@@ -965,6 +996,9 @@
             saveToLocalStorage();
             settingsModal.style.display = 'none';
             showToast('Einstellungen gespeichert');
+            
+            // Zurück zur Geräteansicht
+            switchTab('devices');
         }
 
         function startPolling() {
@@ -972,13 +1006,13 @@
                 clearInterval(appState.pollingInterval);
             }
             
-            appState.pollingInterval = setInterval(() => {
-                if (appState.settings.autoPolling) {
+            if (appState.settings.autoPolling) {
+                appState.pollingInterval = setInterval(() => {
                     refreshData();
-                }
-            }, appState.settings.updateInterval);
-            
-            console.log(`Polling gestartet: ${appState.settings.updateInterval}ms`);
+                }, appState.settings.updateInterval);
+                
+                console.log(`Polling gestartet: ${appState.settings.updateInterval}ms`);
+            }
         }
 
         function stopPolling() {
@@ -1110,6 +1144,9 @@
                 closeModal();
                 updateUI();
                 saveToLocalStorage();
+                
+                // Zurück zur Geräteansicht
+                switchTab('devices');
                 
             } catch (error) {
                 console.error('Verbindungsfehler:', error);
@@ -1274,6 +1311,9 @@
         function closeModal() {
             scanModal.style.display = 'none';
             stopScanning();
+            
+            // Zurück zur Geräteansicht
+            switchTab('devices');
         }
 
         function showError(message) {
@@ -1284,23 +1324,13 @@
             // Simple toast notification
             const toast = document.createElement('div');
             toast.textContent = message;
-            toast.style.cssText = `
-                position: fixed;
-                top: 20px;
-                left: 50%;
-                transform: translateX(-50%);
-                background: var(--card-dark);
-                color: white;
-                padding: 12px 20px;
-                border-radius: 10px;
-                z-index: 3000;
-                font-size: 14px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            `;
+            toast.className = 'toast';
             document.body.appendChild(toast);
             
             setTimeout(() => {
-                document.body.removeChild(toast);
+                if (toast.parentNode) {
+                    document.body.removeChild(toast);
+                }
             }, 3000);
         }
 
