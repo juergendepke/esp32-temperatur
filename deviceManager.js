@@ -1,4 +1,4 @@
-// Device Manager für BLE Geräte - VOLLSTÄNDIG KORRIGIERT
+// Device Manager für BLE Geräte - MIT FEHLERBEHANDLUNG
 class DeviceManager {
     constructor() {
         this.connectedDevices = new Map();
@@ -7,13 +7,14 @@ class DeviceManager {
         this.isScanning = false;
         this.pollingIntervals = new Map();
         
-        // BLE UUIDs - EXAKT WIE IM ESP32
+        // BLE UUIDs
         this.SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0';
         this.CHAR_TEMP_UUID = '12345678-1234-5678-1234-56789abcdef1';
         this.CHAR_INTERVAL_UUID = '12345678-1234-5678-1234-56789abcdef2';
         this.CHAR_DEVICE_TYPE_UUID = '12345678-1234-5678-1234-56789abcdef4';
         this.CHAR_DEVICE_ID_UUID = '12345678-1234-5678-1234-56789abcdef5';
         
+        // Gerätetypen
         this.DEVICE_TYPE = {
             TEMPERATURE: 0,
             VOLTAGE: 1,
@@ -21,6 +22,7 @@ class DeviceManager {
         };
     }
     
+    // Event System
     on(event, callback) {
         if (!this.eventListeners.has(event)) {
             this.eventListeners.set(event, []);
@@ -40,10 +42,11 @@ class DeviceManager {
         }
     }
     
+    // System-Dialog für Geräteauswahl
     async startScan(duration = 15) {
         if (this.isScanning) {
             console.log('🔍 Scan läuft bereits');
-            return [];
+            return;
         }
         
         try {
@@ -58,12 +61,13 @@ class DeviceManager {
                 scanResolve = resolve;
             });
 
+            // Timeout für die Scan-Dauer
             const scanTimeout = setTimeout(() => {
                 console.log(`⏰ Scan-Dauer von ${duration} Sekunden abgelaufen`);
                 scanResolve([]);
             }, duration * 1000);
 
-            // WICHTIG: acceptAllDevices auf true für bessere Kompatibilität
+            // Bluetooth System-Dialog öffnen
             const options = {
                 acceptAllDevices: true,
                 optionalServices: [this.SERVICE_UUID]
@@ -71,35 +75,38 @@ class DeviceManager {
 
             console.log('📱 Öffne System-Bluetooth-Dialog...');
 
-            try {
-                const device = await navigator.bluetooth.requestDevice(options);
-                
-                clearTimeout(scanTimeout);
-                
-                if (device) {
-                    console.log('✅ Gerät ausgewählt:', device.name, device.id);
-                    this.availableDevices.set(device.id, {
-                        id: device.id,
-                        name: device.name || 'Unbekanntes Gerät',
-                        device: device
-                    });
-                    const devices = Array.from(this.availableDevices.values());
-                    scanResolve(devices);
-                } else {
-                    scanResolve([]);
-                }
-            } catch (error) {
-                clearTimeout(scanTimeout);
-                console.error('❌ Scan Fehler:', error);
-                
-                if (error.name === 'NotFoundError') {
-                    console.log('❌ Benutzer hat Geräteauswahl abgebrochen');
-                } else {
-                    console.error('❌ Bluetooth Fehler:', error);
-                }
-                scanResolve([]);
-            }
+            navigator.bluetooth.requestDevice(options)
+                .then(device => {
+                    // User hat ein Gerät ausgewählt → Timeout cancellen
+                    clearTimeout(scanTimeout);
+                    
+                    if (device) {
+                        console.log('✅ Gerät ausgewählt:', device.name);
+                        this.availableDevices.set(device.id, {
+                            id: device.id,
+                            name: device.name,
+                            device: device
+                        });
+                        const devices = Array.from(this.availableDevices.values());
+                        scanResolve(devices);
+                    } else {
+                        scanResolve([]);
+                    }
+                })
+                .catch(error => {
+                    // User hat abgebrochen oder Fehler → Timeout cancellen
+                    clearTimeout(scanTimeout);
+                    
+                    if (error.name === 'NotFoundError') {
+                        console.log('❌ Benutzer hat Geräteauswahl abgebrochen');
+                        scanResolve([]);
+                    } else {
+                        console.error('❌ Scan Fehler:', error);
+                        scanResolve([]);
+                    }
+                });
 
+            // Warte auf Ergebnis
             const devices = await scanPromise;
             
             console.log(`📊 Scan beendet: ${devices.length} Gerät(e) gefunden`);
@@ -115,23 +122,24 @@ class DeviceManager {
         }
     }
     
-    // VERBESSERTE VERBINDUNGSMETHODE
+    // VERBINDUNGSMETHODE
     async connectToDevice(device) {
         console.log('🔗 VERSUCHE VERBINDUNG mit:', device.name);
         
+        // Prüfe ob bereits verbunden
         if (this.connectedDevices.has(device.id)) {
             console.log('ℹ️ Gerät bereits verbunden');
             return this.connectedDevices.get(device.id);
         }
         
         try {
-            // 1. GATT Server verbinden mit Timeout
+            // 1. GATT Server verbinden
             console.log('📡 Verbinde mit GATT Server...');
-            const server = await this.connectWithTimeout(device.device.gatt.connect(), 10000);
+            const server = await device.device.gatt.connect();
             console.log('✅ GATT Server verbunden');
             
-            // 2. Längere Pause für Stabilität
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // 2. Kurze Pause für Stabilität
+            await new Promise(resolve => setTimeout(resolve, 100));
             
             // 3. Service discoveren
             console.log('🔍 Suche Service...');
@@ -141,35 +149,23 @@ class DeviceManager {
                 console.log('✅ Service gefunden');
             } catch (serviceError) {
                 console.error('❌ Service nicht gefunden:', serviceError);
-                throw new Error('Service nicht gefunden. Ist der ESP32 korrekt programmiert?');
+                throw new Error('Dieses Gerät unterstützt nicht das benötigte Sensor-Format.');
             }
             
-            // 4. ALLE Characteristics auflisten zur Diagnose
-            console.log('🔍 Prüfe verfügbare Characteristics...');
-            const characteristics = await service.getCharacteristics();
-            console.log(`📊 Gefundene Characteristics: ${characteristics.length}`);
-            characteristics.forEach(char => {
-                console.log('   -', char.uuid, 'Properties:', this.getPropertyNames(char.properties));
-            });
-            
-            // 5. Geräteinformationen lesen
+            // 4. Geräteinformationen lesen
             console.log('📖 Lese Geräteinformationen...');
             const deviceInfo = await this.readDeviceInfo(service, device);
-            console.log('✅ Geräteinfo gelesen:', {
-                id: deviceInfo.id,
-                type: deviceInfo.type,
-                interval: deviceInfo.interval
-            });
+            console.log('✅ Geräteinfo gelesen');
             
-            // 6. Gerät speichern
+            // 5. Gerät speichern
             this.connectedDevices.set(deviceInfo.id, deviceInfo);
             console.log('💾 Gerät gespeichert');
             
-            // 7. Polling starten
+            // 6. Polling-Methode starten
             console.log('🔄 Starte Polling...');
             this.startSimplePolling(deviceInfo);
             
-            // 8. Disconnect Handler
+            // 7. Disconnect Handler
             device.device.addEventListener('gattserverdisconnected', () => {
                 console.log('🔌 Gerät getrennt');
                 this.stopPolling(deviceInfo.id);
@@ -185,45 +181,32 @@ class DeviceManager {
         } catch (error) {
             console.error('💥 VERBINDUNGSFEHLER:', error);
             
-            // Versuche zu trennen
+            // Versuche zu trennen falls teilweise verbunden
             try {
-                if (device.device.gatt && device.device.gatt.connected) {
+                if (device.device.gatt.connected) {
                     await device.device.gatt.disconnect();
                 }
             } catch (disconnectError) {
                 // Ignoriere Disconnect-Fehler
             }
             
-            throw error;
-        }
-    }
-    
-    // Timeout für Verbindung
-    connectWithTimeout(promise, timeout) {
-        return new Promise(async (resolve, reject) => {
-            const timer = setTimeout(() => {
-                reject(new Error('Verbindungs-Time-out - Gerät nicht erreichbar'));
-            }, timeout);
+            // Benutzerfreundliche Fehlermeldung
+            let userMessage = 'Verbindung fehlgeschlagen: ';
             
-            try {
-                const result = await promise;
-                clearTimeout(timer);
-                resolve(result);
-            } catch (error) {
-                clearTimeout(timer);
-                reject(error);
+            if (error.message.includes('unterstützt nicht')) {
+                userMessage = 'Dieses Gerät ist kein kompatibler Sensor.';
+            } else if (error.toString().includes('GATT Server is disconnected')) {
+                userMessage = 'Gerät nicht erreichbar. Bitte ESP32 neustarten.';
+            } else if (error.toString().includes('Timeout')) {
+                userMessage = 'Verbindungs-Time-out. Gerät in Reichweite?';
+            } else if (error.toString().includes('Characteristic')) {
+                userMessage = 'Gerät unterstützt nicht alle benötigten Funktionen.';
+            } else {
+                userMessage += error.message;
             }
-        });
-    }
-    
-    // Characteristic Properties anzeigen
-    getPropertyNames(properties) {
-        const props = [];
-        if (properties & 0x02) props.push('READ');
-        if (properties & 0x04) props.push('WRITE');
-        if (properties & 0x08) props.push('NOTIFY');
-        if (properties & 0x10) props.push('INDICATE');
-        return props.join(', ');
+            
+            throw new Error(userMessage);
+        }
     }
     
     async readDeviceInfo(service, device) {
@@ -231,25 +214,19 @@ class DeviceManager {
         
         try {
             // Device Type
-            console.log('🔍 Lese Device Type...');
             const typeChar = await service.getCharacteristic(this.CHAR_DEVICE_TYPE_UUID);
             const typeValue = await typeChar.readValue();
             const deviceType = parseInt(decoder.decode(typeValue));
-            console.log('📋 Device Type:', deviceType);
             
             // Device ID
-            console.log('🔍 Lese Device ID...');
             const idChar = await service.getCharacteristic(this.CHAR_DEVICE_ID_UUID);
             const idValue = await idChar.readValue();
             const deviceId = decoder.decode(idValue);
-            console.log('🆔 Device ID:', deviceId);
             
             // Interval
-            console.log('🔍 Lese Interval...');
             const intervalChar = await service.getCharacteristic(this.CHAR_INTERVAL_UUID);
             const intervalValue = await intervalChar.readValue();
             const interval = parseInt(decoder.decode(intervalValue));
-            console.log('⏱️ Interval:', interval);
             
             return {
                 id: deviceId,
@@ -264,14 +241,15 @@ class DeviceManager {
             };
         } catch (error) {
             console.error('❌ Fehler beim Lesen der Geräteinfo:', error);
-            throw new Error('Fehler beim Lesen der Geräteinformationen: ' + error.message);
+            throw new Error('Gerät unterstützt nicht das benötigte Service-Format.');
         }
     }
     
-    // VERBESSERTE POLLING-METHODE
+    // POLLING-METHODE
     startSimplePolling(deviceInfo) {
-        console.log('🔄 STARTE POLLING für:', deviceInfo.name, 'Type:', deviceInfo.type);
+        console.log('🔄 STARTE POLLING für:', deviceInfo.name);
         
+        // Stoppe vorhandenes Polling
         this.stopPolling(deviceInfo.id);
         
         const pollingInterval = setInterval(async () => {
@@ -282,15 +260,16 @@ class DeviceManager {
             }
             
             try {
-                // Temperatur lesen für Temperatur-Geräte
-                if (deviceInfo.type === this.DEVICE_TYPE.TEMPERATURE) {
+                // Temperatur lesen
+                if (deviceInfo.type === this.DEVICE_TYPE.TEMPERATURE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
                     const tempChar = await deviceInfo.service.getCharacteristic(this.CHAR_TEMP_UUID);
                     const value = await tempChar.readValue();
                     const tempValue = new TextDecoder().decode(value);
                     
-                    console.log('🌡️ TEMPERATUR GELESEN:', tempValue + '°C');
+                    console.log('🌡️ TEMPERATUR:', tempValue + '°C');
                     
-                    if (tempValue && tempValue !== deviceInfo.temperature) {
+                    // Nur aktualisieren wenn sich der Wert geändert hat
+                    if (deviceInfo.temperature !== tempValue) {
                         deviceInfo.temperature = tempValue;
                         deviceInfo.lastUpdate = new Date().toLocaleTimeString();
                         this.emit('deviceUpdated', deviceInfo.id, {
@@ -300,28 +279,41 @@ class DeviceManager {
                     }
                 }
                 
+                // Spannung lesen
+                if (deviceInfo.type === this.DEVICE_TYPE.VOLTAGE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
+                    const voltageChar = await deviceInfo.service.getCharacteristic(this.CHAR_VOLTAGE_UUID);
+                    const value = await voltageChar.readValue();
+                    const voltageValue = new TextDecoder().decode(value);
+                    
+                    console.log('⚡ SPANNUNG:', voltageValue + 'V');
+                    
+                    // Nur aktualisieren wenn sich der Wert geändert hat
+                    if (deviceInfo.voltage !== voltageValue) {
+                        deviceInfo.voltage = voltageValue;
+                        deviceInfo.lastUpdate = new Date().toLocaleTimeString();
+                        this.emit('deviceUpdated', deviceInfo.id, {
+                            type: 'voltage',
+                            value: voltageValue
+                        });
+                    }
+                }
+                
             } catch (error) {
                 console.error('❌ Polling Fehler:', error);
-                
-                // Bei Verbindungsfehlern Polling stoppen
-                if (error.toString().includes('disconnected') || 
-                    error.toString().includes('not connected') ||
-                    error.toString().includes('GATT')) {
-                    console.log('🔌 Verbindungsfehler - stoppe Polling');
-                    this.stopPolling(deviceInfo.id);
-                    this.connectedDevices.delete(deviceInfo.id);
-                    this.emit('deviceDisconnected', deviceInfo.id);
-                }
+                // Bei Fehler: Polling stoppen und Gerät als getrennt markieren
+                this.stopPolling(deviceInfo.id);
+                this.connectedDevices.delete(deviceInfo.id);
+                this.emit('deviceDisconnected', deviceInfo.id);
             }
-        }, Math.max(deviceInfo.interval * 1000, 2000));
+        }, 2000); // Alle 2 Sekunden
         
         this.pollingIntervals.set(deviceInfo.id, pollingInterval);
-        console.log('✅ POLLING GESTARTET - Intervall:', deviceInfo.interval + 's');
+        console.log('✅ POLLING GESTARTET');
         
         // SOFORT ERSTEN WERT LESEN
         setTimeout(async () => {
             try {
-                if (deviceInfo.type === this.DEVICE_TYPE.TEMPERATURE) {
+                if (deviceInfo.type === this.DEVICE_TYPE.TEMPERATURE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
                     const tempChar = await deviceInfo.service.getCharacteristic(this.CHAR_TEMP_UUID);
                     const value = await tempChar.readValue();
                     const tempValue = new TextDecoder().decode(value);
@@ -363,6 +355,7 @@ class DeviceManager {
     }
     
     async disconnectAllDevices() {
+        // Stoppe alle Polling-Intervalle
         this.pollingIntervals.forEach((interval, deviceId) => {
             clearInterval(interval);
         });
@@ -374,6 +367,7 @@ class DeviceManager {
         await Promise.all(disconnectPromises);
     }
     
+    // Geräte-Einstellungen
     async setUpdateInterval(deviceId, interval) {
         const deviceInfo = this.connectedDevices.get(deviceId);
         if (!deviceInfo) throw new Error('Gerät nicht verbunden');
