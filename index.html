@@ -1,202 +1,632 @@
-#include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEServer.h>
-#include <BLE2902.h>
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TempLink — ESP32 Temperatur</title>
+  <meta name="theme-color" content="#007aff">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌡️</text></svg>">
+  <style>
+  :root {
+    --accent: #007aff;
+    --accent-light: #2f95ff;
+    --accent-dark: #0056cc;
+    --bg: #f2f2f7;
+    --card-bg: rgba(255,255,255,0.8);
+    --card-border: rgba(255,255,255,0.6);
+    --card-shadow: 0 8px 32px rgba(0,0,0,0.08);
+    --text: #1d1d1f;
+    --text-secondary: #8e8e93;
+    --text-tertiary: #c7c7cc;
+    --success: #34c759;
+    --warning: #ff9500;
+    --error: #ff3b30;
+  }
 
-// Service und Characteristic UUIDs
-#define SERVICE_UUID           "12345678-1234-5678-1234-56789abcdef0"
-#define CHAR_TEMP_UUID         "12345678-1234-5678-1234-56789abcdef1"
-#define CHAR_INTERVAL_UUID     "12345678-1234-5678-1234-56789abcdef2"
-#define CHAR_LED_STATUS_UUID   "12345678-1234-5678-1234-56789abcdef3"
-#define CHAR_DEVICE_TYPE_UUID  "12345678-1234-5678-1234-56789abcdef4"
-#define CHAR_DEVICE_ID_UUID    "12345678-1234-5678-1234-56789abcdef5"
-#define CHAR_VOLTAGE_UUID      "12345678-1234-5678-1234-56789abcdef6"
-
-// Gerätetypen
-#define DEVICE_TYPE_TEMPERATURE 0
-#define DEVICE_TYPE_VOLTAGE     1
-#define DEVICE_TYPE_MULTI       2
-
-BLECharacteristic *tempCharacteristic;
-BLECharacteristic *voltageCharacteristic;
-BLECharacteristic *intervalCharacteristic;
-BLECharacteristic *ledCharacteristic;
-BLECharacteristic *deviceTypeCharacteristic;
-BLECharacteristic *deviceIdCharacteristic;
-
-bool deviceConnected = false;
-bool oldDeviceConnected = false;
-int intervalSeconds = 2;
-bool ledOn = true;
-float temperature = 23.5;
-float voltage = 3.3;
-String deviceId;
-
-BLEServer *pServer;
-
-// Sensor Simulationen
-float readTemperature() {
-    temperature += (random(-30, 31) * 0.01);
-    temperature = constrain(temperature, 15.0, 35.0);
-    return temperature;
-}
-
-float readVoltage() {
-    voltage += (random(-10, 11) * 0.01);
-    voltage = constrain(voltage, 2.5, 5.0);
-    return voltage;
-}
-
-class ServerCallbacks: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
-        deviceConnected = true;
-        Serial.println("✅ Gerät verbunden - Multi-Sensor");
-        digitalWrite(LED_BUILTIN, HIGH);
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --card-bg: rgba(28,28,30,0.8);
+      --card-border: rgba(54,54,56,0.6);
+      --card-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      --text: #ffffff;
+      --text-secondary: #98989d;
+      --text-tertiary: #48484a;
     }
+  }
 
-    void onDisconnect(BLEServer* pServer) {
-        deviceConnected = false;
-        Serial.println("❌ Gerät getrennt");
-        digitalWrite(LED_BUILTIN, LOW);
+  * { 
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  html, body { 
+    height: 100%; 
+    margin: 0; 
+    background: var(--bg);
+    transition: background-color 0.3s ease;
+  }
+  
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text);
+    overflow-x: hidden;
+    display: flex; 
+    flex-direction: column;
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Top Bar - iOS Style */
+  .topbar {
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    padding: 16px 20px;
+    backdrop-filter: blur(40px) saturate(180%);
+    background: rgba(251,251,253,0.8);
+    border-bottom: 0.5px solid rgba(0,0,0,0.1);
+    position: sticky; 
+    top: 0; 
+    z-index: 1000;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .topbar {
+      background: rgba(29,29,31,0.8);
+      border-bottom: 0.5px solid rgba(255,255,255,0.1);
     }
-};
+  }
 
-class IntervalCallback: public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic *pCharacteristic) {
-        String value = pCharacteristic->getValue().c_str();
-        if (value.length() > 0) {
-            intervalSeconds = value.toInt();
-            Serial.println("📊 Update-Intervall geändert: " + String(intervalSeconds) + "s");
-        }
+  .topbar h1 { 
+    font-size: 21px; 
+    margin: 0; 
+    font-weight: 700; 
+    letter-spacing: -0.4px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Buttons - iOS Style */
+  .btn {
+    display: inline-flex; 
+    align-items: center; 
+    justify-content: center;
+    gap: 6px; 
+    padding: 12px 20px;
+    border: none; 
+    border-radius: 12px;
+    font-weight: 600; 
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    font-family: inherit;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255,255,255,0.2);
+    border-radius: 50%;
+    transition: all 0.4s ease;
+    transform: translate(-50%, -50%);
+  }
+
+  .btn:active::after {
+    width: 100px;
+    height: 100px;
+  }
+
+  .btn.primary {
+    background: var(--accent); 
+    color: white;
+    box-shadow: 0 4px 16px rgba(0,122,255,0.3);
+  }
+
+  .btn.primary:hover { 
+    background: var(--accent-light); 
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(0,122,255,0.4);
+  }
+
+  .btn.primary:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(0,122,255,0.3);
+  }
+
+  .btn.secondary {
+    background: rgba(0,122,255,0.1); 
+    color: var(--accent);
+    border: 1px solid rgba(0,122,255,0.2);
+  }
+
+  .btn.secondary:hover {
+    background: rgba(0,122,255,0.15);
+    transform: translateY(-1px);
+  }
+
+  /* Main Content */
+  main {
+    flex: 1; 
+    display: grid; 
+    gap: 20px; 
+    padding: 20px;
+    animation: fadein 0.6s ease-out;
+  }
+
+  /* Cards - iOS Glassmorphism */
+  .card {
+    backdrop-filter: blur(40px) saturate(180%);
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 24px;
+    transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    box-shadow: var(--card-shadow);
+  }
+
+  .card:hover { 
+    transform: translateY(-4px); 
+    box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .card:hover {
+      box-shadow: 0 12px 40px rgba(0,0,0,0.6);
     }
-};
+  }
 
-class LedCallback: public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic *pCharacteristic) {
-        String value = pCharacteristic->getValue().c_str();
-        if (value.length() > 0) {
-            ledOn = (value == "1");
-            digitalWrite(LED_BUILTIN, ledOn ? HIGH : LOW);
-            Serial.println("💡 LED Status: " + String(ledOn ? "EIN" : "AUS"));
-        }
+  /* Temperature Display */
+  .temp-container {
+    text-align: center;
+    padding: 10px 0;
+  }
+
+  .temp-value {
+    font-size: 72px; 
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--accent-light));
+    -webkit-background-clip: text; 
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -2px;
+    margin: 0;
+    line-height: 1;
+  }
+
+  .temp-meta { 
+    margin-top: 12px; 
+    color: var(--text-secondary); 
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  /* Info Rows */
+  .row { 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 0.5px solid var(--text-tertiary);
+  }
+
+  .row:last-child {
+    border-bottom: none;
+  }
+
+  .row strong {
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .row span, .row small {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* Settings Section */
+  .setting-group {
+    margin: 20px 0;
+    padding: 16px;
+    background: rgba(0,122,255,0.05);
+    border-radius: 16px;
+    border: 1px solid rgba(0,122,255,0.1);
+  }
+
+  .setting-label {
+    display: block;
+    margin-bottom: 12px;
+    font-weight: 600;
+    color: var(--text);
+    font-size: 16px;
+  }
+
+  /* Slider - iOS Style */
+  .slider {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--text-tertiary);
+    outline: none;
+    -webkit-appearance: none;
+    margin: 16px 0;
+  }
+
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,122,255,0.4);
+    border: 2px solid white;
+    transition: all 0.2s ease;
+  }
+
+  .slider::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0,122,255,0.5);
+  }
+
+  /* Switch - iOS Style */
+  .switch-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+  }
+
+  .switch-label {
+    font-weight: 600;
+    color: var(--text);
+    font-size: 16px;
+  }
+
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 54px;
+    height: 32px;
+  }
+
+  .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .slider-round {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--text-tertiary);
+    transition: .4s;
+    border-radius: 32px;
+  }
+
+  .slider-round:before {
+    position: absolute;
+    content: "";
+    height: 28px;
+    width: 28px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+
+  input:checked + .slider-round {
+    background-color: var(--accent);
+  }
+
+  input:checked + .slider-round:before {
+    transform: translateX(22px);
+  }
+
+  /* Animations */
+  @keyframes fadein {
+    from { 
+      opacity: 0; 
+      transform: translateY(20px); 
     }
-};
+    to { 
+      opacity: 1; 
+      transform: translateY(0); 
+    }
+  }
 
-void setup() {
-    Serial.begin(115200);
-    
-    // Eindeutige Device ID erstellen
-    deviceId = "Multi-" + String((uint32_t)ESP.getEfuseMac(), HEX);
-    
-    // LED Pin
-    pinMode(LED_BUILTIN, OUTPUT);
-    digitalWrite(LED_BUILTIN, HIGH);
-    
-    Serial.println("🔀 Starte BLE Multi-Sensor...");
-    Serial.println("Device ID: " + deviceId);
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
 
-    BLEDevice::init(deviceId.c_str());
+  .pulse {
+    animation: pulse 2s infinite;
+  }
 
-    pServer = BLEDevice::createServer();
-    pServer->setCallbacks(new ServerCallbacks());
+  /* Status Indicators */
+  .status-connected {
+    color: var(--success);
+    font-weight: 600;
+  }
 
-    BLEService *pService = pServer->createService(SERVICE_UUID);
+  .status-disconnected {
+    color: var(--error);
+    font-weight: 600;
+  }
 
-    // Characteristics erstellen
-    tempCharacteristic = pService->createCharacteristic(
-        CHAR_TEMP_UUID,
-        BLECharacteristic::PROPERTY_READ |
-        BLECharacteristic::PROPERTY_NOTIFY
-    );
-    tempCharacteristic->addDescriptor(new BLE2902());
-
-    voltageCharacteristic = pService->createCharacteristic(
-        CHAR_VOLTAGE_UUID,
-        BLECharacteristic::PROPERTY_READ |
-        BLECharacteristic::PROPERTY_NOTIFY
-    );
-    voltageCharacteristic->addDescriptor(new BLE2902());
-
-    intervalCharacteristic = pService->createCharacteristic(
-        CHAR_INTERVAL_UUID,
-        BLECharacteristic::PROPERTY_READ |
-        BLECharacteristic::PROPERTY_WRITE
-    );
-    intervalCharacteristic->setCallbacks(new IntervalCallback());
-
-    ledCharacteristic = pService->createCharacteristic(
-        CHAR_LED_STATUS_UUID,
-        BLECharacteristic::PROPERTY_READ |
-        BLECharacteristic::PROPERTY_WRITE
-    );
-    ledCharacteristic->setCallbacks(new LedCallback());
-
-    deviceTypeCharacteristic = pService->createCharacteristic(
-        CHAR_DEVICE_TYPE_UUID,
-        BLECharacteristic::PROPERTY_READ
-    );
-
-    deviceIdCharacteristic = pService->createCharacteristic(
-        CHAR_DEVICE_ID_UUID,
-        BLECharacteristic::PROPERTY_READ
-    );
-
-    // Startwerte setzen
-    intervalCharacteristic->setValue(String(intervalSeconds).c_str());
-    ledCharacteristic->setValue(ledOn ? "1" : "0");
-    deviceTypeCharacteristic->setValue(String(DEVICE_TYPE_MULTI).c_str());
-    deviceIdCharacteristic->setValue(deviceId.c_str());
-
-    pService->start();
-    
-    // Advertising
-    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-    pAdvertising->addServiceUUID(SERVICE_UUID);
-    pAdvertising->setScanResponse(true);
-    pAdvertising->setMinPreferred(0x06);
-    pAdvertising->setMinPreferred(0x12);
-    
-    pServer->getAdvertising()->start();
-    
-    Serial.println("✅ BLE Multi-Sensor bereit - Warte auf Verbindung...");
-    Serial.println("📱 Jetzt mit der Web-App verbinden!");
-}
-
-unsigned long lastUpdate = 0;
-
-void loop() {
-    // Verbindungsmanagement
-    if (!deviceConnected && oldDeviceConnected) {
-        delay(500);
-        pServer->startAdvertising();
-        Serial.println("🔄 Starte Advertising...");
-        oldDeviceConnected = deviceConnected;
+  /* Responsive */
+  @media (min-width: 768px) {
+    main { 
+      max-width: 400px; 
+      margin: 0 auto;
+      padding: 40px 20px;
     }
     
-    if (deviceConnected && !oldDeviceConnected) {
-        oldDeviceConnected = deviceConnected;
+    .topbar {
+      padding: 20px;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .temp-value {
+      font-size: 64px;
     }
     
-    // Daten senden
-    if (deviceConnected && millis() - lastUpdate > intervalSeconds * 1000) {
-        lastUpdate = millis();
-        
-        // Sensoren lesen
-        float currentTemp = readTemperature();
-        float currentVoltage = readVoltage();
-        
-        String tempString = String(currentTemp, 1);
-        String voltageString = String(currentVoltage, 2);
-        
-        // Daten senden
-        tempCharacteristic->setValue(tempString.c_str());
-        tempCharacteristic->notify();
-        
-        voltageCharacteristic->setValue(voltageString.c_str());
-        voltageCharacteristic->notify();
-        
-        Serial.println("📤 Multi-Sensor Daten: " + tempString + " °C, " + voltageString + " V");
+    .card {
+      padding: 20px;
     }
+  }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <h1>🌡️ TempLink</h1>
+    <button id="connectBtn" class="btn primary">🔗 Verbinden</button>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="temp-container">
+        <div class="temp-value" id="tempValue">--°C</div>
+        <div class="temp-meta">Letzte Aktualisierung: <span id="lastUpdate">—</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <strong>Status</strong>
+        <span id="connectionStatus" class="status-disconnected">Getrennt</span>
+      </div>
+      <div class="row">
+        <strong>Gerät</strong>
+        <span id="deviceName">Nicht verbunden</span>
+      </div>
+      <div class="row">
+        <strong>Service</strong>
+        <small>12345678-1234-5678-1234-56789abcdef0</small>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin: 0 0 16px 0; font-size: 20px; font-weight: 700;">⚙️ Einstellungen</h3>
+      
+      <div class="setting-group">
+        <label class="setting-label">
+          Update-Intervall: <span id="intervalValue" style="color: var(--accent); font-weight: 700;">2</span>s
+        </label>
+        <input type="range" id="intervalSlider" min="1" max="60" value="2" class="slider">
+        <button id="applyInterval" class="btn secondary" style="width: 100%; margin-top: 8px;">
+          💾 Intervall übernehmen
+        </button>
+      </div>
+      
+      <div class="switch-container">
+        <span class="switch-label">Status LED</span>
+        <label class="switch">
+          <input type="checkbox" id="ledToggle" checked>
+          <span class="slider-round"></span>
+        </label>
+      </div>
+    </section>
+
+    <section class="card" style="text-align: center;">
+      <button id="notifyToggle" class="btn secondary" style="width: 100%;">
+        🔔 Benachrichtigungen aktivieren
+      </button>
+    </section>
+  </main>
+
+  <script>
+  const SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0'.toLowerCase();
+  const CHAR_TEMP_UUID = '12345678-1234-5678-1234-56789abcdef1'.toLowerCase();
+  const CHAR_INTERVAL_UUID = '12345678-1234-5678-1234-56789abcdef2'.toLowerCase();
+  const CHAR_LED_STATUS_UUID = '12345678-1234-5678-1234-56789abcdef3'.toLowerCase();
+
+  let device, service, characteristic, notifying = false;
+  const tempValue = document.getElementById('tempValue');
+  const lastUpdate = document.getElementById('lastUpdate');
+  const deviceNameEl = document.getElementById('deviceName');
+  const connectBtn = document.getElementById('connectBtn');
+  const notifyToggle = document.getElementById('notifyToggle');
+  const connectionStatus = document.getElementById('connectionStatus');
+  
+  // Neue UI Elemente
+  const intervalSlider = document.getElementById('intervalSlider');
+  const intervalValue = document.getElementById('intervalValue');
+  const applyIntervalBtn = document.getElementById('applyInterval');
+  const ledToggle = document.getElementById('ledToggle');
+
+  function updateConnectionStatus(connected) {
+    if (connected) {
+      connectionStatus.textContent = "Verbunden";
+      connectionStatus.className = "status-connected";
+      connectBtn.textContent = "✅ Verbunden";
+      connectBtn.classList.remove('primary');
+      connectBtn.classList.add('secondary');
+    } else {
+      connectionStatus.textContent = "Getrennt";
+      connectionStatus.className = "status-disconnected";
+      connectBtn.textContent = "🔗 Verbinden";
+      connectBtn.classList.remove('secondary');
+      connectBtn.classList.add('primary');
+      deviceNameEl.textContent = "Nicht verbunden";
+    }
+  }
+
+  // Intervall anzeigen
+  intervalSlider.addEventListener('input', () => {
+    intervalValue.textContent = intervalSlider.value;
+  });
+
+  // Intervall an ESP32 senden
+  applyIntervalBtn.addEventListener('click', async () => {
+    if (!characteristic) return alert('Nicht verbunden');
     
-    delay(100);
-}
+    try {
+      const intervalCharacteristic = await service.getCharacteristic(CHAR_INTERVAL_UUID);
+      const interval = parseInt(intervalSlider.value);
+      
+      // Wert als String senden (z.B. "5" für 5 Sekunden)
+      const encoder = new TextEncoder();
+      await intervalCharacteristic.writeValue(encoder.encode(interval.toString()));
+      
+      alert(`✅ Update-Intervall auf ${interval}s geändert`);
+    } catch (e) {
+      alert('❌ Fehler: ' + e);
+    }
+  });
+
+  // LED Einstellung
+  ledToggle.addEventListener('change', async () => {
+    if (!characteristic) return;
+    
+    try {
+      const ledCharacteristic = await service.getCharacteristic(CHAR_LED_STATUS_UUID);
+      const encoder = new TextEncoder();
+      const value = ledToggle.checked ? '1' : '0';
+      
+      await ledCharacteristic.writeValue(encoder.encode(value));
+      console.log(`LED Status: ${value}`);
+    } catch (e) {
+      console.error('LED Fehler:', e);
+    }
+  });
+
+  // Beim Verbinden aktuelle Einstellungen abrufen
+  async function getCurrentSettings() {
+    try {
+      const intervalChar = await service.getCharacteristic(CHAR_INTERVAL_UUID);
+      const intervalValueRead = await intervalChar.readValue();
+      const decoder = new TextDecoder();
+      const interval = decoder.decode(intervalValueRead);
+      
+      intervalSlider.value = interval;
+      intervalValue.textContent = interval;
+      
+      const ledChar = await service.getCharacteristic(CHAR_LED_STATUS_UUID);
+      const ledValue = await ledChar.readValue();
+      const ledStatus = decoder.decode(ledValue);
+      
+      ledToggle.checked = (ledStatus === '1');
+    } catch (e) {
+      console.log('Einstellungen nicht verfügbar:', e);
+    }
+  }
+
+  connectBtn.addEventListener('click', async () => {
+    try {
+      const opts = {
+        filters: [{ services: [SERVICE_UUID] }],
+        optionalServices: [SERVICE_UUID]
+      };
+      device = await navigator.bluetooth.requestDevice(opts);
+      
+      // WICHTIG: Device Name setzen NACH der Auswahl
+      deviceNameEl.textContent = device.name || 'ESP32_TempSim';
+      
+      const server = await device.gatt.connect();
+      service = await server.getPrimaryService(SERVICE_UUID);
+      characteristic = await service.getCharacteristic(CHAR_TEMP_UUID);
+      
+      // Status aktualisieren
+      updateConnectionStatus(true);
+      
+      // Einstellungen abrufen
+      await getCurrentSettings();
+      
+      await startNotifications();
+      
+    } catch (e) {
+      console.error('BLE Fehler:', e);
+      alert('Verbindung fehlgeschlagen oder nicht unterstützt.\n' + e);
+      updateConnectionStatus(false);
+    }
+  });
+
+  // Device Disconnection Handler
+  device?.addEventListener('gattserverdisconnected', () => {
+    updateConnectionStatus(false);
+  });
+
+  notifyToggle.addEventListener('click', async () => {
+    if (!characteristic) return alert('Keine aktive Verbindung.');
+    notifying ? await stopNotifications() : await startNotifications();
+  });
+
+  async function startNotifications() {
+    try {
+      await characteristic.startNotifications();
+      characteristic.addEventListener('characteristicvaluechanged', ev => handleTemp(ev.target.value));
+      notifying = true;
+      notifyToggle.textContent = '🔕 Benachrichtigungen stoppen';
+      notifyToggle.classList.add('pulse');
+      console.log('Notifications gestartet');
+    } catch (e) {
+      alert('Fehler beim Start der Notifications: ' + e);
+    }
+  }
+
+  async function stopNotifications() {
+    try {
+      await characteristic.stopNotifications();
+      notifying = false;
+      notifyToggle.textContent = '🔔 Benachrichtigungen aktivieren';
+      notifyToggle.classList.remove('pulse');
+      console.log('Notifications gestoppt');
+    } catch (e) {
+      alert('Fehler beim Stoppen: ' + e);
+    }
+  }
+
+  function handleTemp(dataView) {
+    const decoder = new TextDecoder('utf-8');
+    const raw = decoder.decode(dataView.buffer);
+    tempValue.textContent = raw + '°C';
+    lastUpdate.textContent = new Date().toLocaleTimeString();
+    
+    // Pulsierende Animation bei neuer Temperatur
+    tempValue.classList.add('pulse');
+    setTimeout(() => tempValue.classList.remove('pulse'), 1000);
+  }
+
+  // Initial Status setzen
+  updateConnectionStatus(false);
+  </script>
+</body>
+</html>
