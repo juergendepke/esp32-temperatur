@@ -1,11 +1,10 @@
-// Device Manager für BLE Geräte mit KORRIGIERTEM AUTOMATISCHEM SCAN
+// Device Manager für BLE Geräte - SYSTEM-DIALOG VERSION (bewährt)
 class DeviceManager {
     constructor() {
         this.connectedDevices = new Map();
         this.availableDevices = new Map();
         this.eventListeners = new Map();
         this.isScanning = false;
-        this.currentScan = null;
         
         // BLE UUIDs
         this.SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0';
@@ -43,11 +42,11 @@ class DeviceManager {
         }
     }
     
-    // KORRIGIERTER AUTOMATISCHER SCAN - Akzeptiert alle Geräte
-    async startAutoScan(duration = 15) {
+    // BEWÄHRTE METHODE: System-Dialog für Geräteauswahl
+    async startScan(duration = 15) {
         if (this.isScanning) {
             console.log('🔍 Scan läuft bereits');
-            return this.availableDevices;
+            return;
         }
         
         try {
@@ -55,102 +54,87 @@ class DeviceManager {
             this.availableDevices.clear();
             this.emit('scanStarted');
             
-            console.log(`🔄 Starte AUTO-SCAN für ${duration} Sekunden...`);
+            console.log(`🔄 Starte Scan für ${duration} Sekunden...`);
 
-            const foundDevices = new Map();
-            let scanTimer;
-            let scanStartTime = Date.now();
-
-            // Event Listener für gefundene Geräte - KORRIGIERT
-            const onAdvertisementReceived = (event) => {
-                const device = event.device;
-                
-                // KORREKTUR: Akzeptiere ALLE Geräte mit Namen
-                if (device.name) {
-                    if (!foundDevices.has(device.id)) {
-                        console.log(`📱 Gefunden: "${device.name}" (RSSI: ${event.rssi})`);
-                        foundDevices.set(device.id, {
-                            id: device.id,
-                            name: device.name,
-                            device: device,
-                            rssi: event.rssi,
-                            timestamp: Date.now()
-                        });
-                        
-                        // Sofortige UI-Aktualisierung
-                        this.emit('deviceFound', Array.from(foundDevices.values()));
-                    }
-                }
-            };
-
-            // BLE Scan starten
-            console.log('📡 Starte BLE Advertisement Scan...');
-            await navigator.bluetooth.requestLEScan({
-                acceptAllAdvertisements: true
+            let scanResolve;
+            const scanPromise = new Promise(resolve => {
+                scanResolve = resolve;
             });
 
-            // Event Listener registrieren
-            navigator.bluetooth.addEventListener('advertisementreceived', onAdvertisementReceived);
-
-            // Scan-Dauer Timer
-            scanTimer = setTimeout(async () => {
-                await this.stopAutoScan();
-                navigator.bluetooth.removeEventListener('advertisementreceived', onAdvertisementReceived);
-                
-                const devices = Array.from(foundDevices.values());
-                const scanTime = ((Date.now() - scanStartTime) / 1000).toFixed(1);
-                
-                console.log(`✅ AUTO-SCAN beendet: ${devices.length} Geräte in ${scanTime}s gefunden`);
-                this.emit('scanStopped', devices);
-                
+            // Timeout für die Scan-Dauer
+            const scanTimeout = setTimeout(() => {
+                console.log(`⏰ Scan-Dauer von ${duration} Sekunden abgelaufen`);
+                this.stopScan();
+                scanResolve([]);
             }, duration * 1000);
 
-            // Speichere aktuellen Scan für Stopp-Funktion
-            this.currentScan = {
-                timer: scanTimer,
-                eventListener: onAdvertisementReceived,
-                foundDevices: foundDevices
+            // Bluetooth System-Dialog öffnen - DAS HAT FUNKTIONIERT!
+            const options = {
+                acceptAllDevices: true,
+                optionalServices: [this.SERVICE_UUID]
             };
 
-            return Array.from(foundDevices.values());
+            console.log('📱 Öffne System-Bluetooth-Dialog...');
 
+            navigator.bluetooth.requestDevice(options)
+                .then(device => {
+                    // User hat ein Gerät ausgewählt → Timeout cancellen
+                    clearTimeout(scanTimeout);
+                    
+                    if (device) {
+                        console.log('✅ Gerät ausgewählt:', device.name);
+                        this.availableDevices.set(device.id, {
+                            id: device.id,
+                            name: device.name,
+                            device: device
+                        });
+                        const devices = Array.from(this.availableDevices.values());
+                        scanResolve(devices);
+                    } else {
+                        scanResolve([]);
+                    }
+                })
+                .catch(error => {
+                    // User hat abgebrochen oder Fehler → Timeout cancellen
+                    clearTimeout(scanTimeout);
+                    
+                    if (error.name === 'NotFoundError') {
+                        console.log('❌ Benutzer hat Geräteauswahl abgebrochen');
+                        scanResolve([]);
+                    } else {
+                        console.error('❌ Scan Fehler:', error);
+                        scanResolve([]);
+                    }
+                });
+
+            // Warte auf Ergebnis (entweder Timeout oder User-Auswahl)
+            const devices = await scanPromise;
+            
+            console.log(`📊 Scan beendet: ${devices.length} Gerät(e) gefunden`);
+            this.isScanning = false;
+            this.emit('scanStopped', devices);
+            return devices;
+            
         } catch (error) {
-            console.error('❌ AUTO-SCAN fehlgeschlagen:', error);
+            console.error('❌ Scan komplett fehlgeschlagen:', error);
             this.isScanning = false;
             this.emit('scanStopped', []);
-            
-            if (error.name === 'NotSupportedError') {
-                throw new Error('Automatischer Scan wird vom Browser nicht unterstützt. Verwende Chrome oder Edge.');
-            } else if (error.name === 'SecurityError') {
-                throw new Error('Bluetooth-Zugriff wurde verweigert. Bitte erlauben Sie den Zugriff.');
-            } else {
-                throw new Error(`Scan fehlgeschlagen: ${error.message}`);
-            }
+            return [];
         }
     }
     
-    // Scan stoppen
-    async stopAutoScan() {
+    async stopScan() {
         if (!this.isScanning) return;
         
         try {
-            if (this.currentScan) {
-                clearTimeout(this.currentScan.timer);
-                navigator.bluetooth.removeEventListener('advertisementreceived', this.currentScan.eventListener);
-                this.currentScan = null;
-            }
-            
-            await navigator.bluetooth.stopLEScan();
             this.isScanning = false;
-            console.log('⏹️ AUTO-SCAN gestoppt');
-            
+            console.log('⏹️ Scan gestoppt');
         } catch (error) {
             console.error('Fehler beim Scan-Stopp:', error);
-            this.isScanning = false;
         }
     }
     
-    // Verbindung zu einem Gerät mit SERVICE-VERFÜGBARKEITS-PRÜFUNG
+    // Verbindung zu einem Gerät
     async connectToDevice(device) {
         if (this.connectedDevices.has(device.id)) {
             console.log('Gerät bereits verbunden:', device.id);
@@ -158,12 +142,12 @@ class DeviceManager {
         }
         
         try {
-            console.log('🔗 Versuche Verbindung mit:', device.name);
+            console.log('🔗 Verbinde mit Gerät:', device.name);
             
             const server = await device.device.gatt.connect();
             console.log('✅ GATT Server verbunden');
             
-            // PRÜFE OB UNSER SERVICE VORHANDEN IST
+            // Prüfe ob unser Service verfügbar ist
             let service;
             try {
                 service = await server.getPrimaryService(this.SERVICE_UUID);
@@ -196,9 +180,9 @@ class DeviceManager {
             
             // Spezifische Fehlermeldungen
             if (error.message.includes('unterstützt nicht')) {
-                throw error; // Bereits gute Fehlermeldung
+                throw error;
             } else if (error.toString().includes('GATT Server is disconnected')) {
-                throw new Error('Gerät nicht erreichbar. Bitte stelle sicher, dass der ESP32 eingeschaltet ist.');
+                throw new Error('Gerät nicht erreichbar. ESP32 neustarten?');
             } else if (error.toString().includes('Characteristic')) {
                 throw new Error('Gerät unterstützt nicht alle benötigten Funktionen.');
             } else {
