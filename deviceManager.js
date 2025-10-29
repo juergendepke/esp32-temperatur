@@ -1,4 +1,4 @@
-// Device Manager für BLE Geräte mit AUTOMATISCHEM SCAN
+// Device Manager für BLE Geräte mit KORRIGIERTEM AUTOMATISCHEM SCAN
 class DeviceManager {
     constructor() {
         this.connectedDevices = new Map();
@@ -43,7 +43,7 @@ class DeviceManager {
         }
     }
     
-    // AUTOMATISCHER SCAN - Hauptfunktion
+    // KORRIGIERTER AUTOMATISCHER SCAN - Akzeptiert alle Geräte
     async startAutoScan(duration = 15) {
         if (this.isScanning) {
             console.log('🔍 Scan läuft bereits');
@@ -61,18 +61,14 @@ class DeviceManager {
             let scanTimer;
             let scanStartTime = Date.now();
 
-            // Event Listener für gefundene Geräte
+            // Event Listener für gefundene Geräte - KORRIGIERT
             const onAdvertisementReceived = (event) => {
                 const device = event.device;
                 
-                // Filtere nur unsere ESP32 Geräte
-                if (device.name && (
-                    device.name.includes('Temp-') || 
-                    device.name.includes('Volt-') || 
-                    device.name.includes('Multi-')
-                )) {
+                // KORREKTUR: Akzeptiere ALLE Geräte mit Namen
+                if (device.name) {
                     if (!foundDevices.has(device.id)) {
-                        console.log(`📱 Gefunden: ${device.name} (RSSI: ${event.rssi})`);
+                        console.log(`📱 Gefunden: "${device.name}" (RSSI: ${event.rssi})`);
                         foundDevices.set(device.id, {
                             id: device.id,
                             name: device.name,
@@ -154,7 +150,7 @@ class DeviceManager {
         }
     }
     
-    // Verbindung zu einem Gerät
+    // Verbindung zu einem Gerät mit SERVICE-VERFÜGBARKEITS-PRÜFUNG
     async connectToDevice(device) {
         if (this.connectedDevices.has(device.id)) {
             console.log('Gerät bereits verbunden:', device.id);
@@ -162,10 +158,19 @@ class DeviceManager {
         }
         
         try {
-            console.log('🔗 Verbinde mit Gerät:', device.name);
+            console.log('🔗 Versuche Verbindung mit:', device.name);
             
             const server = await device.device.gatt.connect();
-            const service = await server.getPrimaryService(this.SERVICE_UUID);
+            console.log('✅ GATT Server verbunden');
+            
+            // PRÜFE OB UNSER SERVICE VORHANDEN IST
+            let service;
+            try {
+                service = await server.getPrimaryService(this.SERVICE_UUID);
+                console.log('✅ Unser Service gefunden');
+            } catch (serviceError) {
+                throw new Error(`Gerät "${device.name}" unterstützt nicht das benötigte Sensor-Format.`);
+            }
             
             // Geräteinformationen lesen
             const deviceInfo = await this.readDeviceInfo(service, device);
@@ -189,7 +194,10 @@ class DeviceManager {
         } catch (error) {
             console.error('❌ Verbindungsfehler:', error);
             
-            if (error.toString().includes('GATT Server is disconnected')) {
+            // Spezifische Fehlermeldungen
+            if (error.message.includes('unterstützt nicht')) {
+                throw error; // Bereits gute Fehlermeldung
+            } else if (error.toString().includes('GATT Server is disconnected')) {
                 throw new Error('Gerät nicht erreichbar. Bitte stelle sicher, dass der ESP32 eingeschaltet ist.');
             } else if (error.toString().includes('Characteristic')) {
                 throw new Error('Gerät unterstützt nicht alle benötigten Funktionen.');
