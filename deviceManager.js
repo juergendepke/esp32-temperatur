@@ -1,4 +1,4 @@
-// Device Manager für BLE Geräte - KOMPLETTE LÖSUNG
+// Device Manager für BLE Geräte - MIT FEHLERBEHANDLUNG
 class DeviceManager {
     constructor() {
         this.connectedDevices = new Map();
@@ -65,7 +65,6 @@ class DeviceManager {
             // Timeout für die Scan-Dauer
             const scanTimeout = setTimeout(() => {
                 console.log(`⏰ Scan-Dauer von ${duration} Sekunden abgelaufen`);
-                this.stopScan();
                 scanResolve([]);
             }, duration * 1000);
 
@@ -124,83 +123,90 @@ class DeviceManager {
         }
     }
     
-    async stopScan() {
-        if (!this.isScanning) return;
-        
-        try {
-            this.isScanning = false;
-            console.log('⏹️ Scan gestoppt');
-        } catch (error) {
-            console.error('Fehler beim Scan-Stopp:', error);
-        }
-    }
-    
-    // Verbindung zu einem Gerät - MIT NOTIFICATIONS & POLLING
+    // VERBESSERTE VERBINDUNGSMETHODE
     async connectToDevice(device) {
+        console.log('🔗 VERSUCHE VERBINDUNG mit:', device.name);
+        
+        // Prüfe ob bereits verbunden
         if (this.connectedDevices.has(device.id)) {
-            console.log('Gerät bereits verbunden:', device.id);
+            console.log('ℹ️ Gerät bereits verbunden');
             return this.connectedDevices.get(device.id);
         }
         
         try {
-            console.log('🔗 STARTE Verbindung mit:', device.name);
-            
             // 1. GATT Server verbinden
             console.log('📡 Verbinde mit GATT Server...');
             const server = await device.device.gatt.connect();
             console.log('✅ GATT Server verbunden');
             
-            // 2. Service discoveren
+            // 2. Kurze Pause für Stabilität
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // 3. Service discoveren
             console.log('🔍 Suche Service...');
             let service;
             try {
                 service = await server.getPrimaryService(this.SERVICE_UUID);
-                console.log('✅ Service gefunden:', this.SERVICE_UUID);
+                console.log('✅ Service gefunden');
             } catch (serviceError) {
                 console.error('❌ Service nicht gefunden:', serviceError);
-                throw new Error(`Gerät "${device.name}" unterstützt nicht das benötigte Sensor-Format.`);
+                throw new Error('Dieses Gerät unterstützt nicht das benötigte Sensor-Format.');
             }
             
-            // 3. Geräteinformationen lesen
+            // 4. Geräteinformationen lesen
             console.log('📖 Lese Geräteinformationen...');
             const deviceInfo = await this.readDeviceInfo(service, device);
-            console.log('✅ Geräteinfo gelesen - Type:', deviceInfo.type, 'Interval:', deviceInfo.interval);
+            console.log('✅ Geräteinfo gelesen');
             
-            // 4. Gerät speichern
+            // 5. Gerät speichern
             this.connectedDevices.set(deviceInfo.id, deviceInfo);
+            console.log('💾 Gerät gespeichert');
             
-            // 5. Notifications starten
-            console.log('🔔 Starte Notifications...');
-            await this.setupNotifications(service, deviceInfo);
-            
-            // 6. ZUSÄTZLICH: Manuelles Polling als Backup starten
-            console.log('🔄 Starte Backup-Polling...');
-            this.startManualPolling(deviceInfo);
+            // 6. Einfache Polling-Methode starten (garantiert funktioniert)
+            console.log('🔄 Starte einfaches Polling...');
+            this.startSimplePolling(deviceInfo);
             
             // 7. Disconnect Handler
             device.device.addEventListener('gattserverdisconnected', () => {
-                console.log('🔌 Gerät getrennt:', deviceInfo.id);
-                this.stopManualPolling(deviceInfo.id);
-                this.onDeviceDisconnected(deviceInfo.id);
+                console.log('🔌 Gerät getrennt');
+                this.stopPolling(deviceInfo.id);
+                this.connectedDevices.delete(deviceInfo.id);
+                this.emit('deviceDisconnected', deviceInfo.id);
             });
             
-            console.log('🎉 Gerät erfolgreich verbunden und ready!');
+            console.log('🎉 GERÄT ERFOLGREICH VERBUNDEN!');
             this.emit('deviceConnected', deviceInfo);
             
             return deviceInfo;
             
         } catch (error) {
-            console.error('💥 Verbindungsfehler:', error);
+            console.error('💥 VERBINDUNGSFEHLER:', error);
+            
+            // Versuche zu trennen falls teilweise verbunden
+            try {
+                if (device.device.gatt.connected) {
+                    await device.device.gatt.disconnect();
+                }
+            } catch (disconnectError) {
+                // Ignoriere Disconnect-Fehler
+            }
+            
+            // Benutzerfreundliche Fehlermeldung
+            let userMessage = 'Verbindung fehlgeschlagen: ';
             
             if (error.message.includes('unterstützt nicht')) {
-                throw error;
+                userMessage = 'Dieses Gerät ist kein kompatibler Sensor.';
             } else if (error.toString().includes('GATT Server is disconnected')) {
-                throw new Error('Gerät nicht erreichbar. ESP32 neustarten?');
+                userMessage = 'Gerät nicht erreichbar. Bitte ESP32 neustarten.';
+            } else if (error.toString().includes('Timeout')) {
+                userMessage = 'Verbindungs-Time-out. Gerät in Reichweite?';
             } else if (error.toString().includes('Characteristic')) {
-                throw new Error('Gerät unterstützt nicht alle benötigten Funktionen.');
+                userMessage = 'Gerät unterstützt nicht alle benötigten Funktionen.';
             } else {
-                throw new Error(`Verbindung fehlgeschlagen: ${error.message}`);
+                userMessage += error.message;
             }
+            
+            throw new Error(userMessage);
         }
     }
     
@@ -208,23 +214,20 @@ class DeviceManager {
         const decoder = new TextDecoder();
         
         try {
-            console.log('   📋 Lese Device Type...');
+            // Device Type
             const typeChar = await service.getCharacteristic(this.CHAR_DEVICE_TYPE_UUID);
             const typeValue = await typeChar.readValue();
             const deviceType = parseInt(decoder.decode(typeValue));
-            console.log('   ✅ Device Type:', deviceType);
             
-            console.log('   📋 Lese Device ID...');
+            // Device ID
             const idChar = await service.getCharacteristic(this.CHAR_DEVICE_ID_UUID);
             const idValue = await idChar.readValue();
             const deviceId = decoder.decode(idValue);
-            console.log('   ✅ Device ID:', deviceId);
             
-            console.log('   📋 Lese Interval...');
+            // Interval
             const intervalChar = await service.getCharacteristic(this.CHAR_INTERVAL_UUID);
             const intervalValue = await intervalChar.readValue();
             const interval = parseInt(decoder.decode(intervalValue));
-            console.log('   ✅ Interval:', interval);
             
             return {
                 id: deviceId,
@@ -234,8 +237,8 @@ class DeviceManager {
                 device: device.device,
                 service: service,
                 lastUpdate: new Date().toLocaleTimeString(),
-                temperature: null,
-                voltage: null
+                temperature: '--',
+                voltage: '--'
             };
         } catch (error) {
             console.error('❌ Fehler beim Lesen der Geräteinfo:', error);
@@ -243,132 +246,80 @@ class DeviceManager {
         }
     }
     
-    // NOTIFICATIONS MIT EVENT-LISTENER
-    async setupNotifications(service, deviceInfo) {
-        console.log('🚀 STARTE NOTIFICATIONS SETUP...');
-        const decoder = new TextDecoder();
+    // EINFACHE POLLING-METHODE (GARANTIERT FUNKTIONIERT)
+    startSimplePolling(deviceInfo) {
+        console.log('🔄 STARTE EINFACHES POLLING für:', deviceInfo.name);
         
-        try {
-            // Für Temperatur-Sensoren
-            if (deviceInfo.type === this.DEVICE_TYPE.TEMPERATURE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
-                console.log('🌡️ Initialisiere Temperatur-Notifications...');
-                
-                const tempChar = await service.getCharacteristic(this.CHAR_TEMP_UUID);
-                console.log('✅ Temperatur-Characteristic verfügbar');
-                
-                // EVENT LISTENER für Temperatur
-                const tempHandler = (event) => {
-                    try {
-                        const value = decoder.decode(event.target.value);
-                        console.log('🔥 NEUE TEMPERATUR VIA NOTIFICATION:', value + '°C');
-                        deviceInfo.temperature = value;
-                        deviceInfo.lastUpdate = new Date().toLocaleTimeString();
-                        this.emit('deviceUpdated', deviceInfo.id, {
-                            type: 'temperature',
-                            value: value
-                        });
-                    } catch (err) {
-                        console.error('Fehler beim Verarbeiten der Temperatur:', err);
-                    }
-                };
-                
-                // Event Listener ZUERST registrieren
-                tempChar.addEventListener('characteristicvaluechanged', tempHandler);
-                console.log('✅ Temperatur-Event-Listener registriert');
-                
-                // DANACH Notifications starten
-                await tempChar.startNotifications();
-                console.log('✅ Temperatur-Notifications GESTARTET');
-                
-                // SOFORT: Aktuellen Wert lesen und anzeigen
-                try {
-                    const currentValue = await tempChar.readValue();
-                    const currentTemp = decoder.decode(currentValue);
-                    console.log('📊 AKTUELLE TEMPERATUR (Sofort):', currentTemp + '°C');
-                    
-                    deviceInfo.temperature = currentTemp;
-                    deviceInfo.lastUpdate = new Date().toLocaleTimeString();
-                    this.emit('deviceUpdated', deviceInfo.id, {
-                        type: 'temperature',
-                        value: currentTemp
-                    });
-                } catch (e) {
-                    console.log('ℹ️ Sofort-Lesen fehlgeschlagen:', e.message);
-                }
-            }
-            
-            // Für Spannungs-Sensoren
-            if (deviceInfo.type === this.DEVICE_TYPE.VOLTAGE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
-                console.log('⚡ Initialisiere Spannungs-Notifications...');
-                
-                const voltageChar = await service.getCharacteristic(this.CHAR_VOLTAGE_UUID);
-                console.log('✅ Spannungs-Characteristic verfügbar');
-                
-                // EVENT LISTENER für Spannung
-                const voltageHandler = (event) => {
-                    try {
-                        const value = decoder.decode(event.target.value);
-                        console.log('⚡ NEUE SPANNUNG VIA NOTIFICATION:', value + 'V');
-                        deviceInfo.voltage = value;
-                        deviceInfo.lastUpdate = new Date().toLocaleTimeString();
-                        this.emit('deviceUpdated', deviceInfo.id, {
-                            type: 'voltage',
-                            value: value
-                        });
-                    } catch (err) {
-                        console.error('Fehler beim Verarbeiten der Spannung:', err);
-                    }
-                };
-                
-                // Event Listener ZUERST registrieren
-                voltageChar.addEventListener('characteristicvaluechanged', voltageHandler);
-                console.log('✅ Spannungs-Event-Listener registriert');
-                
-                // DANACH Notifications starten
-                await voltageChar.startNotifications();
-                console.log('✅ Spannungs-Notifications GESTARTET');
-                
-                // SOFORT: Aktuellen Wert lesen und anzeigen
-                try {
-                    const currentValue = await voltageChar.readValue();
-                    const currentVoltage = decoder.decode(currentValue);
-                    console.log('📊 AKTUELLE SPANNUNG (Sofort):', currentVoltage + 'V');
-                    
-                    deviceInfo.voltage = currentVoltage;
-                    deviceInfo.lastUpdate = new Date().toLocaleTimeString();
-                    this.emit('deviceUpdated', deviceInfo.id, {
-                        type: 'voltage',
-                        value: currentVoltage
-                    });
-                } catch (e) {
-                    console.log('ℹ️ Sofort-Lesen fehlgeschlagen:', e.message);
-                }
-            }
-            
-        } catch (error) {
-            console.error('💥 FEHLER in setupNotifications:', error);
-        }
-        
-        console.log('🎉 NOTIFICATIONS SETUP ABGESCHLOSSEN');
-    }
-    
-    // MANUELLES POLLING ALS BACKUP
-    async startManualPolling(deviceInfo) {
-        console.log('🔄 STARTE MANUELLES POLLING für:', deviceInfo.name);
-        
-        // Stoppe vorhandenes Polling falls vorhanden
-        this.stopManualPolling(deviceInfo.id);
+        // Stoppe vorhandenes Polling
+        this.stopPolling(deviceInfo.id);
         
         const pollingInterval = setInterval(async () => {
+            if (!this.connectedDevices.has(deviceInfo.id)) {
+                console.log('ℹ️ Polling gestoppt - Gerät nicht mehr verbunden');
+                this.stopPolling(deviceInfo.id);
+                return;
+            }
+            
             try {
-                // Temperatur pollen
+                // Temperatur lesen
                 if (deviceInfo.type === this.DEVICE_TYPE.TEMPERATURE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
                     const tempChar = await deviceInfo.service.getCharacteristic(this.CHAR_TEMP_UUID);
                     const value = await tempChar.readValue();
                     const tempValue = new TextDecoder().decode(value);
                     
-                    console.log('📡 TEMPERATUR POLLING:', tempValue + '°C');
+                    console.log('🌡️ TEMPERATUR:', tempValue + '°C');
                     
+                    // Nur aktualisieren wenn sich der Wert geändert hat
+                    if (deviceInfo.temperature !== tempValue) {
+                        deviceInfo.temperature = tempValue;
+                        deviceInfo.lastUpdate = new Date().toLocaleTimeString();
+                        this.emit('deviceUpdated', deviceInfo.id, {
+                            type: 'temperature',
+                            value: tempValue
+                        });
+                    }
+                }
+                
+                // Spannung lesen
+                if (deviceInfo.type === this.DEVICE_TYPE.VOLTAGE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
+                    const voltageChar = await deviceInfo.service.getCharacteristic(this.CHAR_VOLTAGE_UUID);
+                    const value = await voltageChar.readValue();
+                    const voltageValue = new TextDecoder().decode(value);
+                    
+                    console.log('⚡ SPANNUNG:', voltageValue + 'V');
+                    
+                    // Nur aktualisieren wenn sich der Wert geändert hat
+                    if (deviceInfo.voltage !== voltageValue) {
+                        deviceInfo.voltage = voltageValue;
+                        deviceInfo.lastUpdate = new Date().toLocaleTimeString();
+                        this.emit('deviceUpdated', deviceInfo.id, {
+                            type: 'voltage',
+                            value: voltageValue
+                        });
+                    }
+                }
+                
+            } catch (error) {
+                console.error('❌ Polling Fehler:', error);
+                // Bei Fehler: Polling stoppen und Gerät als getrennt markieren
+                this.stopPolling(deviceInfo.id);
+                this.connectedDevices.delete(deviceInfo.id);
+                this.emit('deviceDisconnected', deviceInfo.id);
+            }
+        }, 2000); // Alle 2 Sekunden
+        
+        this.pollingIntervals.set(deviceInfo.id, pollingInterval);
+        console.log('✅ POLLING GESTARTET');
+        
+        // SOFORT ERSTEN WERT LESEN
+        setTimeout(async () => {
+            try {
+                if (deviceInfo.type === this.DEVICE_TYPE.TEMPERATURE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
+                    const tempChar = await deviceInfo.service.getCharacteristic(this.CHAR_TEMP_UUID);
+                    const value = await tempChar.readValue();
+                    const tempValue = new TextDecoder().decode(value);
+                    
+                    console.log('🚀 ERSTE TEMPERATUR:', tempValue + '°C');
                     deviceInfo.temperature = tempValue;
                     deviceInfo.lastUpdate = new Date().toLocaleTimeString();
                     this.emit('deviceUpdated', deviceInfo.id, {
@@ -376,35 +327,13 @@ class DeviceManager {
                         value: tempValue
                     });
                 }
-                
-                // Spannung pollen
-                if (deviceInfo.type === this.DEVICE_TYPE.VOLTAGE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
-                    const voltageChar = await deviceInfo.service.getCharacteristic(this.CHAR_VOLTAGE_UUID);
-                    const value = await voltageChar.readValue();
-                    const voltageValue = new TextDecoder().decode(value);
-                    
-                    console.log('📡 SPANNUNG POLLING:', voltageValue + 'V');
-                    
-                    deviceInfo.voltage = voltageValue;
-                    deviceInfo.lastUpdate = new Date().toLocaleTimeString();
-                    this.emit('deviceUpdated', deviceInfo.id, {
-                        type: 'voltage',
-                        value: voltageValue
-                    });
-                }
-                
             } catch (error) {
-                console.error('❌ Polling Fehler:', error);
-                // Bei Fehler: Polling stoppen
-                this.stopManualPolling(deviceInfo.id);
+                console.error('❌ Fehler beim ersten Lesen:', error);
             }
-        }, 2000); // Alle 2 Sekunden
-        
-        this.pollingIntervals.set(deviceInfo.id, pollingInterval);
-        console.log('✅ MANUELLES POLLING GESTARTET für', deviceInfo.name);
+        }, 500);
     }
     
-    stopManualPolling(deviceId) {
+    stopPolling(deviceId) {
         if (this.pollingIntervals.has(deviceId)) {
             clearInterval(this.pollingIntervals.get(deviceId));
             this.pollingIntervals.delete(deviceId);
@@ -412,18 +341,11 @@ class DeviceManager {
         }
     }
     
-    onDeviceDisconnected(deviceId) {
-        console.log('🔌 Gerät getrennt:', deviceId);
-        this.stopManualPolling(deviceId);
-        this.connectedDevices.delete(deviceId);
-        this.emit('deviceDisconnected', deviceId);
-    }
-    
     async disconnectDevice(deviceId) {
         const deviceInfo = this.connectedDevices.get(deviceId);
         if (deviceInfo) {
             try {
-                this.stopManualPolling(deviceId);
+                this.stopPolling(deviceId);
                 await deviceInfo.device.gatt.disconnect();
             } catch (error) {
                 console.warn('Warnung beim Trennen:', error);
@@ -456,7 +378,7 @@ class DeviceManager {
             const encoder = new TextEncoder();
             await intervalChar.writeValue(encoder.encode(interval.toString()));
             deviceInfo.interval = interval;
-            console.log(`⏱️ Update-Intervall für ${deviceId} auf ${interval}s gesetzt`);
+            console.log(`⏱️ Update-Intervall auf ${interval}s gesetzt`);
             return true;
         } catch (error) {
             console.error('❌ Fehler beim Setzen des Intervalls:', error);
@@ -483,37 +405,5 @@ class DeviceManager {
     
     isScanningActive() {
         return this.isScanning;
-    }
-    
-    // Debug-Funktion: Manuell Wert lesen
-    async readCurrentValue(deviceId) {
-        const deviceInfo = this.connectedDevices.get(deviceId);
-        if (!deviceInfo) throw new Error('Gerät nicht verbunden');
-        
-        try {
-            console.log('🔍 MANUELLES LESEN für:', deviceInfo.name);
-            
-            if (deviceInfo.type === this.DEVICE_TYPE.TEMPERATURE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
-                const tempChar = await deviceInfo.service.getCharacteristic(this.CHAR_TEMP_UUID);
-                const value = await tempChar.readValue();
-                const tempValue = new TextDecoder().decode(value);
-                
-                console.log('📖 MANUELL GELESENE TEMPERATUR:', tempValue + '°C');
-                return { type: 'temperature', value: tempValue };
-            }
-            
-            if (deviceInfo.type === this.DEVICE_TYPE.VOLTAGE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
-                const voltageChar = await deviceInfo.service.getCharacteristic(this.CHAR_VOLTAGE_UUID);
-                const value = await voltageChar.readValue();
-                const voltageValue = new TextDecoder().decode(value);
-                
-                console.log('📖 MANUELL GELESENE SPANNUNG:', voltageValue + 'V');
-                return { type: 'voltage', value: voltageValue };
-            }
-            
-        } catch (error) {
-            console.error('❌ Fehler beim manuellen Lesen:', error);
-            throw error;
-        }
     }
 }
