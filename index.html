@@ -3,16 +3,71 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MultiSensor BLE Dashboard</title>
+    <title>SensorDashboard BLE</title>
     <meta name="theme-color" content="#007aff">
+    <meta name="description" content="BLE Sensor Monitoring Dashboard für ESP32">
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SensorDashboard">
+    <link rel="apple-touch-icon" href="icons/icon-152x152.png">
+    
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
     <link rel="stylesheet" href="styles.css">
+    
+    <style>
+    /* PWA-spezifische Styles */
+    @media all and (display-mode: standalone) {
+        .topbar {
+            padding-top: env(safe-area-inset-top);
+        }
+    }
+    
+    /* Scan Progress */
+    .scan-progress {
+        text-align: center;
+        padding: 20px;
+    }
+    
+    .progress-bar {
+        width: 100%;
+        height: 8px;
+        background: var(--text-tertiary);
+        border-radius: 4px;
+        overflow: hidden;
+        margin: 16px 0;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), var(--accent-light));
+        border-radius: 4px;
+        width: 0%;
+        transition: width 0.3s ease;
+    }
+    
+    .scanning-animation {
+        animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes scanPulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+    
+    .scanning .btn.primary {
+        animation: scanPulse 1.5s infinite;
+    }
+    </style>
 </head>
 <body>
     <header class="topbar">
         <h1>📊 SensorDashboard</h1>
         <div class="topbar-actions">
-            <button id="scanBtn" class="btn primary">🔍 Scan Starten</button>
+            <button id="scanBtn" class="btn primary">🔍 Auto Scan</button>
             <button id="disconnectAllBtn" class="btn secondary">❌ Alle trennen</button>
         </div>
     </header>
@@ -27,7 +82,7 @@
             <div id="availableDevices" class="devices-list">
                 <div class="no-devices">
                     <p>🔍 Keine Geräte gefunden</p>
-                    <p class="hint">Klicke auf "Scan Starten" um nach Sensoren zu suchen</p>
+                    <p class="hint">Klicke auf "Auto Scan" um automatisch nach Sensoren zu suchen</p>
                 </div>
             </div>
         </section>
@@ -49,7 +104,7 @@
         <!-- Einstellungen -->
         <section class="card">
             <div class="card-header">
-                <h3>⚙️ Globale Einstellungen</h3>
+                <h3>⚙️ Einstellungen</h3>
             </div>
             
             <div class="setting-group">
@@ -58,15 +113,18 @@
                 </label>
                 <input type="range" id="intervalSlider" min="1" max="60" value="2" class="slider">
                 <button id="applyInterval" class="btn secondary" style="width: 100%; margin-top: 8px;">
-                    💾 Intervall übernehmen
+                    💾 Für alle Geräte übernehmen
                 </button>
             </div>
 
             <div class="setting-group">
                 <label class="setting-label">
-                    Scan-Dauer: <span id="scanDurationValue" style="color: var(--accent); font-weight: 700;">10</span>s
+                    Auto-Scan Dauer: <span id="scanDurationValue" style="color: var(--accent); font-weight: 700;">15</span>s
                 </label>
-                <input type="range" id="scanDurationSlider" min="5" max="30" value="10" class="slider">
+                <input type="range" id="scanDurationSlider" min="5" max="30" value="15" class="slider">
+                <small style="color: var(--text-secondary); display: block; margin-top: 8px;">
+                    ⏱️ Dauer des automatischen Scans
+                </small>
             </div>
         </section>
 
@@ -84,8 +142,25 @@
                 <strong>🕒 Letzter Scan</strong>
                 <span id="lastScanTime">—</span>
             </div>
+            <div class="row">
+                <strong>📡 Scan Modus</strong>
+                <span id="scanMode">Auto-Scan</span>
+            </div>
         </section>
     </main>
+
+    <!-- Scan Progress Overlay -->
+    <div id="scanProgress" class="loading-overlay hidden">
+        <div class="loading-spinner"></div>
+        <div class="scan-progress">
+            <p id="scanProgressText">🔍 Scanne nach Sensoren...</p>
+            <div class="progress-bar">
+                <div class="progress-fill" id="scanProgressBar"></div>
+            </div>
+            <p id="foundDevicesCount">Gefundene Geräte: <strong>0</strong></p>
+            <button id="stopScanBtn" class="btn error" style="margin-top: 16px;">⏹️ Scan stoppen</button>
+        </div>
+    </div>
 
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay hidden">
@@ -103,10 +178,42 @@
             <div id="deviceList" class="modal-body">
                 <!-- Wird dynamisch gefüllt -->
             </div>
+            <div class="modal-footer" style="padding: 16px; border-top: 0.5px solid var(--text-tertiary); text-align: center;">
+                <button id="rescanBtn" class="btn secondary">🔄 Erneut scannen</button>
+            </div>
         </div>
     </div>
 
     <script src="deviceManager.js"></script>
     <script src="app.js"></script>
+    
+    <!-- PWA Service Worker Registration -->
+    <script>
+    // Service Worker registrieren
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+            navigator.serviceWorker.register('/sw.js')
+                .then(function(registration) {
+                    console.log('ServiceWorker registriert: ', registration.scope);
+                })
+                .catch(function(error) {
+                    console.log('ServiceWorker Registrierung fehlgeschlagen: ', error);
+                });
+        });
+    }
+
+    // App Mode Detection
+    function detectAppMode() {
+        const scanModeElement = document.getElementById('scanMode');
+        
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            scanModeElement.textContent = 'PWA + Auto-Scan';
+        } else {
+            scanModeElement.textContent = 'Browser + Auto-Scan';
+        }
+    }
+
+    window.addEventListener('load', detectAppMode);
+    </script>
 </body>
 </html>
