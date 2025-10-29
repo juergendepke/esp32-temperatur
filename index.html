@@ -56,12 +56,10 @@
             color: var(--text-dark);
         }
 
-        /* iOS-Safe Area Support */
         .safe-area {
             padding-bottom: var(--safe-area-inset-bottom);
         }
 
-        /* App Container */
         .app-container {
             height: 100vh;
             height: 100dvh;
@@ -78,7 +76,6 @@
             background: var(--background-dark);
         }
 
-        /* Header */
         .app-header {
             height: var(--header-height);
             background: var(--card-light);
@@ -135,7 +132,6 @@
             background: rgba(255,255,255,0.1);
         }
 
-        /* Main Content */
         .app-main {
             flex: 1;
             overflow-y: auto;
@@ -143,7 +139,6 @@
             padding-bottom: calc(var(--tab-bar-height) + 20px);
         }
 
-        /* Welcome Screen */
         .welcome-screen {
             text-align: center;
             padding: 40px 20px;
@@ -177,7 +172,6 @@
             color: var(--text-secondary-dark);
         }
 
-        /* Devices Grid */
         .devices-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -191,7 +185,6 @@
             }
         }
 
-        /* Device Card */
         .device-card {
             background: var(--card-light);
             border-radius: 16px;
@@ -329,7 +322,6 @@
             color: var(--text-secondary-dark);
         }
 
-        /* Tab Bar */
         .tab-bar {
             position: fixed;
             bottom: 0;
@@ -390,7 +382,6 @@
             font-weight: 600;
         }
 
-        /* Buttons */
         .btn {
             background: var(--primary-color);
             color: white;
@@ -443,7 +434,6 @@
             100% { transform: scale(1); }
         }
 
-        /* Loading Spinner */
         .loading-spinner {
             display: inline-block;
             width: 20px;
@@ -459,7 +449,6 @@
             100% { transform: rotate(360deg); }
         }
 
-        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -576,7 +565,6 @@
             color: var(--text-secondary-dark);
         }
 
-        /* Empty State */
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -593,7 +581,6 @@
             opacity: 0.5;
         }
 
-        /* Utility Classes */
         .hidden {
             display: none !important;
         }
@@ -605,11 +592,124 @@
         .mt-4 {
             margin-top: 16px;
         }
+
+        /* Settings Styles */
+        .settings-section {
+            margin-bottom: 24px;
+        }
+
+        .settings-section h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-secondary-light);
+        }
+
+        body.dark-mode .settings-section h3 {
+            color: var(--text-secondary-dark);
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        body.dark-mode .setting-item {
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .setting-label {
+            flex: 1;
+            font-size: 16px;
+        }
+
+        .setting-input {
+            width: 80px;
+            padding: 8px;
+            border: 1px solid var(--text-secondary-light);
+            border-radius: 8px;
+            background: var(--background-light);
+            color: var(--text-light);
+            text-align: center;
+        }
+
+        body.dark-mode .setting-input {
+            background: var(--background-dark);
+            border-color: var(--text-secondary-dark);
+            color: var(--text-dark);
+        }
+
+        .setting-unit {
+            margin-left: 8px;
+            color: var(--text-secondary-light);
+            font-size: 14px;
+        }
+
+        .setting-select {
+            padding: 8px;
+            border: 1px solid var(--text-secondary-light);
+            border-radius: 8px;
+            background: var(--background-light);
+            color: var(--text-light);
+        }
+
+        body.dark-mode .setting-select {
+            background: var(--background-dark);
+            border-color: var(--text-secondary-dark);
+            color: var(--text-dark);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary-color);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
     </style>
 </head>
 <body>
     <div class="app-container safe-area">
-        <!-- Header -->
         <header class="app-header">
             <h1 class="header-title">Sensor Monitor</h1>
             <div class="header-actions">
@@ -618,9 +718,7 @@
             </div>
         </header>
 
-        <!-- Main Content -->
         <main class="app-main">
-            <!-- Welcome Screen (wenn keine Geräte) -->
             <div class="welcome-screen" id="welcomeScreen">
                 <div class="welcome-icon">🌡️</div>
                 <h1 class="welcome-title">Sensor Monitor</h1>
@@ -630,12 +728,10 @@
                 </button>
             </div>
 
-            <!-- Devices Grid -->
             <div class="devices-grid hidden" id="devicesContainer">
                 <!-- Geräte werden hier dynamisch eingefügt -->
             </div>
 
-            <!-- Empty State -->
             <div class="empty-state hidden" id="emptyState">
                 <div class="empty-icon">📱</div>
                 <h3>Keine Geräte verbunden</h3>
@@ -643,7 +739,6 @@
             </div>
         </main>
 
-        <!-- Tab Bar -->
         <nav class="tab-bar">
             <button class="tab-item active" data-tab="devices">
                 <span class="tab-icon">🌡️</span>
@@ -681,6 +776,62 @@
         </div>
     </div>
 
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Einstellungen</h2>
+                <button class="close-modal" id="closeSettingsModal">×</button>
+            </div>
+            
+            <div class="settings-section">
+                <h3>Daten-Update</h3>
+                <div class="setting-item">
+                    <label class="setting-label">Auto-Update Intervall</label>
+                    <select id="updateInterval" class="setting-select">
+                        <option value="1000">1 Sekunde</option>
+                        <option value="2000" selected>2 Sekunden</option>
+                        <option value="5000">5 Sekunden</option>
+                        <option value="10000">10 Sekunden</option>
+                    </select>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Automatisches Polling</label>
+                    <label class="switch">
+                        <input type="checkbox" id="autoPolling" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>Alarme</h3>
+                <div class="setting-item">
+                    <label class="setting-label">Temperatur-Alarm</label>
+                    <input type="number" id="tempAlarm" class="setting-input" placeholder="30" min="0" max="50" step="0.5">
+                    <span class="setting-unit">°C</span>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Batterie-Alarm</label>
+                    <input type="number" id="battAlarm" class="setting-input" placeholder="3.3" min="2.5" max="4.2" step="0.1">
+                    <span class="setting-unit">V</span>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>Geräteverwaltung</h3>
+                <button class="btn btn-outline" id="clearDevicesBtn" style="width: 100%; margin-bottom: 8px;">Alle Geräte löschen</button>
+                <button class="btn btn-outline" id="disconnectAllBtn" style="width: 100%;">Alle Verbindungen trennen</button>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button class="btn" id="saveSettings">Speichern</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Bluetooth Service und Characteristic UUIDs
         const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
@@ -692,7 +843,14 @@
             devices: [],
             darkMode: false,
             isScanning: false,
-            currentTab: 'devices'
+            currentTab: 'devices',
+            settings: {
+                updateInterval: 2000,
+                autoPolling: true,
+                tempAlarm: 30,
+                battAlarm: 3.3
+            },
+            pollingInterval: null
         };
 
         // DOM Elements
@@ -708,6 +866,17 @@
         const rescanBtn = document.getElementById('rescanBtn');
         const deviceList = document.getElementById('deviceList');
         const tabItems = document.querySelectorAll('.tab-item');
+        
+        // Settings Elements
+        const settingsModal = document.getElementById('settingsModal');
+        const closeSettingsModal = document.getElementById('closeSettingsModal');
+        const updateIntervalSelect = document.getElementById('updateInterval');
+        const autoPollingCheckbox = document.getElementById('autoPolling');
+        const tempAlarmInput = document.getElementById('tempAlarm');
+        const battAlarmInput = document.getElementById('battAlarm');
+        const clearDevicesBtn = document.getElementById('clearDevicesBtn');
+        const disconnectAllBtn = document.getElementById('disconnectAllBtn');
+        const saveSettingsBtn = document.getElementById('saveSettings');
 
         // Initialize App
         function init() {
@@ -715,6 +884,7 @@
             setupEventListeners();
             updateUI();
             checkBluetoothAvailability();
+            startPolling();
         }
 
         function setupEventListeners() {
@@ -733,9 +903,18 @@
                 });
             });
 
+            // Settings Event Listeners
+            closeSettingsModal.addEventListener('click', () => settingsModal.style.display = 'none');
+            clearDevicesBtn.addEventListener('click', clearAllDevices);
+            disconnectAllBtn.addEventListener('click', disconnectAllDevices);
+            saveSettingsBtn.addEventListener('click', saveSettings);
+
             // Close modal on backdrop click
             scanModal.addEventListener('click', (e) => {
                 if (e.target === scanModal) closeModal();
+            });
+            settingsModal.addEventListener('click', (e) => {
+                if (e.target === settingsModal) settingsModal.style.display = 'none';
             });
         }
 
@@ -752,12 +931,60 @@
                 case 'scan':
                     startScanning();
                     break;
+                case 'settings':
+                    showSettingsModal();
+                    break;
                 case 'devices':
                     // Already showing devices
                     break;
-                case 'settings':
-                    // Could add settings page in future
-                    break;
+            }
+        }
+
+        function showSettingsModal() {
+            // Load current settings into form
+            updateIntervalSelect.value = appState.settings.updateInterval;
+            autoPollingCheckbox.checked = appState.settings.autoPolling;
+            tempAlarmInput.value = appState.settings.tempAlarm;
+            battAlarmInput.value = appState.settings.battAlarm;
+            
+            settingsModal.style.display = 'flex';
+        }
+
+        function saveSettings() {
+            appState.settings.updateInterval = parseInt(updateIntervalSelect.value);
+            appState.settings.autoPolling = autoPollingCheckbox.checked;
+            appState.settings.tempAlarm = parseFloat(tempAlarmInput.value) || 30;
+            appState.settings.battAlarm = parseFloat(battAlarmInput.value) || 3.3;
+            
+            // Restart polling with new interval
+            stopPolling();
+            if (appState.settings.autoPolling) {
+                startPolling();
+            }
+            
+            saveToLocalStorage();
+            settingsModal.style.display = 'none';
+            showToast('Einstellungen gespeichert');
+        }
+
+        function startPolling() {
+            if (appState.pollingInterval) {
+                clearInterval(appState.pollingInterval);
+            }
+            
+            appState.pollingInterval = setInterval(() => {
+                if (appState.settings.autoPolling) {
+                    refreshData();
+                }
+            }, appState.settings.updateInterval);
+            
+            console.log(`Polling gestartet: ${appState.settings.updateInterval}ms`);
+        }
+
+        function stopPolling() {
+            if (appState.pollingInterval) {
+                clearInterval(appState.pollingInterval);
+                appState.pollingInterval = null;
             }
         }
 
@@ -862,6 +1089,7 @@
                     newDevice.characteristics = { tempChar, battChar };
                     await readDeviceValues(newDevice);
                     
+                    // Starte Notifications für automatische Updates
                     await tempChar.startNotifications();
                     await battChar.startNotifications();
                     
@@ -907,9 +1135,20 @@
                 device.lastUpdate = new Date();
                 updateUI();
                 
+                // Check alarms
+                checkAlarms(device);
+                
             } catch (error) {
                 console.error('Fehler beim Lesen der Werte:', error);
             }
+        }
+
+        function refreshData() {
+            appState.devices.forEach(device => {
+                if (device.connected && device.characteristics) {
+                    readDeviceValues(device);
+                }
+            });
         }
 
         function handleTemperatureUpdate(device, event) {
@@ -918,6 +1157,7 @@
             device.temperature = parseFloat(text) || '--';
             device.lastUpdate = new Date();
             updateUI();
+            checkAlarms(device);
         }
 
         function handleBatteryUpdate(device, event) {
@@ -926,6 +1166,19 @@
             device.batteryVoltage = parseFloat(text) || '--';
             device.lastUpdate = new Date();
             updateUI();
+            checkAlarms(device);
+        }
+
+        function checkAlarms(device) {
+            // Check temperature alarm
+            if (device.temperature !== '--' && device.temperature > appState.settings.tempAlarm) {
+                showToast(`⚠️ Temperaturalarm: ${device.temperature}°C bei ${device.name}`);
+            }
+            
+            // Check battery alarm
+            if (device.batteryVoltage !== '--' && device.batteryVoltage < appState.settings.battAlarm) {
+                showToast(`⚠️ Batteriealarm: ${device.batteryVoltage}V bei ${device.name}`);
+            }
         }
 
         function handleDeviceDisconnected(device) {
@@ -937,12 +1190,33 @@
             saveToLocalStorage();
         }
 
-        function refreshData() {
+        function clearAllDevices() {
+            // Disconnect all devices first
+            disconnectAllDevices();
+            
+            // Clear from app state
+            appState.devices = [];
+            updateUI();
+            saveToLocalStorage();
+            showToast('Alle Geräte gelöscht');
+        }
+
+        function disconnectAllDevices() {
             appState.devices.forEach(device => {
-                if (device.connected && device.characteristics) {
-                    readDeviceValues(device);
+                if (device.connected && device.gattServer) {
+                    try {
+                        device.gattServer.disconnect();
+                    } catch (error) {
+                        console.error('Fehler beim Trennen:', error);
+                    }
                 }
+                device.connected = false;
+                device.gattServer = null;
+                device.characteristics = null;
             });
+            updateUI();
+            saveToLocalStorage();
+            showToast('Alle Verbindungen getrennt');
         }
 
         function createDeviceCard(device) {
@@ -1003,7 +1277,31 @@
         }
 
         function showError(message) {
-            alert(message); // In einer echten App würde man ein schöneres Modal verwenden
+            alert(message);
+        }
+
+        function showToast(message) {
+            // Simple toast notification
+            const toast = document.createElement('div');
+            toast.textContent = message;
+            toast.style.cssText = `
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: var(--card-dark);
+                color: white;
+                padding: 12px 20px;
+                border-radius: 10px;
+                z-index: 3000;
+                font-size: 14px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                document.body.removeChild(toast);
+            }, 3000);
         }
 
         function checkBluetoothAvailability() {
@@ -1020,7 +1318,8 @@
                     id: device.id,
                     name: device.name,
                 })),
-                darkMode: appState.darkMode
+                darkMode: appState.darkMode,
+                settings: appState.settings
             };
             localStorage.setItem('sensorMonitor', JSON.stringify(saveData));
         }
@@ -1031,6 +1330,7 @@
                 const data = JSON.parse(saved);
                 appState.devices = data.devices || [];
                 appState.darkMode = data.darkMode || false;
+                appState.settings = data.settings || appState.settings;
                 
                 document.body.classList.toggle('dark-mode', appState.darkMode);
                 themeToggle.textContent = appState.darkMode ? '☀️' : '🌙';
