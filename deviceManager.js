@@ -1,4 +1,4 @@
-// Device Manager für BLE Geräte - SYSTEM-DIALOG VERSION (bewährt)
+// Device Manager für BLE Geräte - MIT DEBUG INFORMATIONEN
 class DeviceManager {
     constructor() {
         this.connectedDevices = new Map();
@@ -42,7 +42,7 @@ class DeviceManager {
         }
     }
     
-    // BEWÄHRTE METHODE: System-Dialog für Geräteauswahl
+    // System-Dialog für Geräteauswahl
     async startScan(duration = 15) {
         if (this.isScanning) {
             console.log('🔍 Scan läuft bereits');
@@ -68,7 +68,7 @@ class DeviceManager {
                 scanResolve([]);
             }, duration * 1000);
 
-            // Bluetooth System-Dialog öffnen - DAS HAT FUNKTIONIERT!
+            // Bluetooth System-Dialog öffnen
             const options = {
                 acceptAllDevices: true,
                 optionalServices: [this.SERVICE_UUID]
@@ -107,7 +107,7 @@ class DeviceManager {
                     }
                 });
 
-            // Warte auf Ergebnis (entweder Timeout oder User-Auswahl)
+            // Warte auf Ergebnis
             const devices = await scanPromise;
             
             console.log(`📊 Scan beendet: ${devices.length} Gerät(e) gefunden`);
@@ -134,7 +134,7 @@ class DeviceManager {
         }
     }
     
-    // Verbindung zu einem Gerät
+    // Verbindung zu einem Gerät MIT DEBUGGING
     async connectToDevice(device) {
         if (this.connectedDevices.has(device.id)) {
             console.log('Gerät bereits verbunden:', device.id);
@@ -142,43 +142,51 @@ class DeviceManager {
         }
         
         try {
-            console.log('🔗 Verbinde mit Gerät:', device.name);
+            console.log('🔗 STARTE Verbindung mit:', device.name);
             
+            // 1. GATT Server verbinden
+            console.log('📡 Verbinde mit GATT Server...');
             const server = await device.device.gatt.connect();
             console.log('✅ GATT Server verbunden');
             
-            // Prüfe ob unser Service verfügbar ist
+            // 2. Service discoveren
+            console.log('🔍 Suche Service...');
             let service;
             try {
                 service = await server.getPrimaryService(this.SERVICE_UUID);
-                console.log('✅ Unser Service gefunden');
+                console.log('✅ Service gefunden:', this.SERVICE_UUID);
             } catch (serviceError) {
+                console.error('❌ Service nicht gefunden:', serviceError);
                 throw new Error(`Gerät "${device.name}" unterstützt nicht das benötigte Sensor-Format.`);
             }
             
-            // Geräteinformationen lesen
+            // 3. Geräteinformationen lesen
+            console.log('📖 Lese Geräteinformationen...');
             const deviceInfo = await this.readDeviceInfo(service, device);
+            console.log('✅ Geräteinfo gelesen:', deviceInfo);
             
-            // Notifications starten
+            // 4. Notifications starten
+            console.log('🔔 Starte Notifications...');
             await this.setupNotifications(service, deviceInfo);
+            console.log('✅ Notifications gestartet');
             
-            // Gerät speichern
+            // 5. Gerät speichern
             this.connectedDevices.set(deviceInfo.id, deviceInfo);
             
-            // Disconnect Handler
+            // 6. Disconnect Handler
             device.device.addEventListener('gattserverdisconnected', () => {
+                console.log('🔌 Gerät getrennt:', deviceInfo.id);
                 this.onDeviceDisconnected(deviceInfo.id);
             });
             
-            console.log('✅ Gerät erfolgreich verbunden:', deviceInfo);
+            console.log('🎉 Gerät erfolgreich verbunden und ready!');
             this.emit('deviceConnected', deviceInfo);
             
             return deviceInfo;
             
         } catch (error) {
-            console.error('❌ Verbindungsfehler:', error);
+            console.error('💥 Verbindungsfehler:', error);
             
-            // Spezifische Fehlermeldungen
             if (error.message.includes('unterstützt nicht')) {
                 throw error;
             } else if (error.toString().includes('GATT Server is disconnected')) {
@@ -195,20 +203,23 @@ class DeviceManager {
         const decoder = new TextDecoder();
         
         try {
-            // Device Type
+            console.log('   📋 Lese Device Type...');
             const typeChar = await service.getCharacteristic(this.CHAR_DEVICE_TYPE_UUID);
             const typeValue = await typeChar.readValue();
             const deviceType = parseInt(decoder.decode(typeValue));
+            console.log('   ✅ Device Type:', deviceType);
             
-            // Device ID
+            console.log('   📋 Lese Device ID...');
             const idChar = await service.getCharacteristic(this.CHAR_DEVICE_ID_UUID);
             const idValue = await idChar.readValue();
             const deviceId = decoder.decode(idValue);
+            console.log('   ✅ Device ID:', deviceId);
             
-            // Interval
+            console.log('   📋 Lese Interval...');
             const intervalChar = await service.getCharacteristic(this.CHAR_INTERVAL_UUID);
             const intervalValue = await intervalChar.readValue();
             const interval = parseInt(decoder.decode(intervalValue));
+            console.log('   ✅ Interval:', interval);
             
             return {
                 id: deviceId,
@@ -233,10 +244,13 @@ class DeviceManager {
         // Temperatur Notifications
         if (deviceInfo.type === this.DEVICE_TYPE.TEMPERATURE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
             try {
+                console.log('   🌡️ Setup Temperatur Notifications...');
                 const tempChar = await service.getCharacteristic(this.CHAR_TEMP_UUID);
-                await tempChar.startNotifications();
+                
+                // Event Listener für Temperatur
                 tempChar.addEventListener('characteristicvaluechanged', (event) => {
                     const value = decoder.decode(event.target.value);
+                    console.log('📨 TEMPERATUR EMPFANGEN:', value + '°C');
                     deviceInfo.temperature = value;
                     deviceInfo.lastUpdate = new Date().toLocaleTimeString();
                     this.emit('deviceUpdated', deviceInfo.id, {
@@ -244,19 +258,26 @@ class DeviceManager {
                         value: value
                     });
                 });
-                console.log('✅ Temperatur-Notifications aktiviert');
+                
+                // Notifications starten
+                await tempChar.startNotifications();
+                console.log('   ✅ Temperatur-Notifications aktiviert');
+                
             } catch (error) {
-                console.warn('❌ Temperatur-Notifications nicht verfügbar:', error);
+                console.error('   ❌ Temperatur-Notifications Fehler:', error);
             }
         }
         
         // Spannungs Notifications
         if (deviceInfo.type === this.DEVICE_TYPE.VOLTAGE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
             try {
+                console.log('   ⚡ Setup Spannungs Notifications...');
                 const voltageChar = await service.getCharacteristic(this.CHAR_VOLTAGE_UUID);
-                await voltageChar.startNotifications();
+                
+                // Event Listener für Spannung
                 voltageChar.addEventListener('characteristicvaluechanged', (event) => {
                     const value = decoder.decode(event.target.value);
+                    console.log('📨 SPANNUNG EMPFANGEN:', value + 'V');
                     deviceInfo.voltage = value;
                     deviceInfo.lastUpdate = new Date().toLocaleTimeString();
                     this.emit('deviceUpdated', deviceInfo.id, {
@@ -264,9 +285,13 @@ class DeviceManager {
                         value: value
                     });
                 });
-                console.log('✅ Spannungs-Notifications aktiviert');
+                
+                // Notifications starten
+                await voltageChar.startNotifications();
+                console.log('   ✅ Spannungs-Notifications aktiviert');
+                
             } catch (error) {
-                console.warn('❌ Spannungs-Notifications nicht verfügbar:', error);
+                console.error('   ❌ Spannungs-Notifications Fehler:', error);
             }
         }
     }
