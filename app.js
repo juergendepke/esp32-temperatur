@@ -1,4 +1,4 @@
-// Haupt-Anwendungslogik - MIT DEBUG-FUNKTIONEN
+// Haupt-Anwendungslogik - SYSTEM-DIALOG VERSION
 class MultiSensorApp {
     constructor() {
         this.deviceManager = new DeviceManager();
@@ -15,7 +15,7 @@ class MultiSensorApp {
     }
     
     bindEvents() {
-        // Scan Button - SYSTEM-DIALOG VERSION
+        // Scan Button
         document.getElementById('scanBtn').addEventListener('click', () => {
             this.startScan();
         });
@@ -123,7 +123,7 @@ class MultiSensorApp {
         }
     }
     
-    // SYSTEM-DIALOG SCAN - Hauptfunktion
+    // SYSTEM-DIALOG SCAN
     async startScan() {
         if (this.isScanning) {
             console.log('Scan läuft bereits');
@@ -136,7 +136,6 @@ class MultiSensorApp {
         try {
             console.log(`🔍 Starte Scan mit System-Dialog für ${this.currentScanDuration} Sekunden...`);
             
-            // Starte den Scan mit System-Dialog
             const devices = await this.deviceManager.startScan(this.currentScanDuration);
             
             if (devices.length > 0) {
@@ -188,15 +187,14 @@ class MultiSensorApp {
         console.log('🔧 Gerätedetails:', {
             id: device.id,
             type: device.type,
-            interval: device.interval,
-            service: device.service ? 'vorhanden' : 'fehlt'
+            interval: device.interval
         });
     }
     
     onDeviceDisconnected(deviceId) {
         console.log('🔌 Gerät getrennt:', deviceId);
         this.updateDisplay();
-        this.showMessage(`❌ "${deviceId}" getrennt`, 'error');
+        this.showMessage(`❌ Gerät getrennt`, 'error');
     }
     
     onDeviceUpdated(deviceId, data) {
@@ -213,26 +211,14 @@ class MultiSensorApp {
         }
         
         const device = connectedDevices[0];
-        this.showMessage(`🔔 Teste Notifications für "${device.name}"... Prüfe Browser-Konsole!`, 'info');
+        this.showMessage(`🔔 Teste Verbindung für "${device.name}"... Prüfe Browser-Konsole!`, 'info');
         
-        console.log('🧪 ===== NOTIFICATION TEST =====');
+        console.log('🧪 ===== VERBINDUNGS-TEST =====');
         console.log('🧪 Gerät:', device.name);
         console.log('🧪 Type:', device.type);
         console.log('🧪 Interval:', device.interval + 's');
-        console.log('🧪 Service vorhanden:', !!device.service);
-        console.log('🧪 Warte auf Daten vom ESP32...');
-        
-        // Test: Versuche manuell zu lesen
-        try {
-            const tempChar = await device.service.getCharacteristic('12345678-1234-5678-1234-56789abcdef1');
-            const value = await tempChar.readValue();
-            const decoder = new TextDecoder();
-            const tempValue = decoder.decode(value);
-            console.log('🧪 MANUELL GELESEN:', tempValue + '°C');
-        } catch (error) {
-            console.error('🧪 Fehler beim manuellen Lesen:', error);
-        }
-        
+        console.log('🧪 Verbunden:', this.deviceManager.isDeviceConnected(device.id));
+        console.log('🧪 Warte auf Daten...');
         console.log('🧪 ===== TEST ENDE =====');
     }
     
@@ -245,25 +231,24 @@ class MultiSensorApp {
         
         try {
             const device = connectedDevices[0];
+            this.showLoading('Lese aktuellen Wert...');
+            
             console.log('📖 Versuche aktuellen Wert zu lesen...');
+            const result = await this.deviceManager.readCurrentValue(device.id);
             
-            const tempChar = await device.service.getCharacteristic('12345678-1234-5678-1234-56789abcdef1');
-            const value = await tempChar.readValue();
-            const decoder = new TextDecoder();
-            const tempValue = decoder.decode(value);
-            
-            console.log('📖 AKTUELLER WERT:', tempValue + '°C');
-            this.showMessage(`📖 Aktuelle Temperatur: ${tempValue}°C`, 'success');
-            
-            // Aktualisiere die Anzeige
-            this.updateSensorDisplay(device.id, {
-                type: 'temperature',
-                value: tempValue
-            });
+            if (result) {
+                console.log('📖 AKTUELLER WERT:', result.value + (result.type === 'temperature' ? '°C' : 'V'));
+                this.showMessage(`📖 Aktueller Wert: ${result.value}${result.type === 'temperature' ? '°C' : 'V'}`, 'success');
+                
+                // Aktualisiere die Anzeige
+                this.updateSensorDisplay(device.id, result);
+            }
             
         } catch (error) {
             console.error('❌ Fehler beim Lesen:', error);
             this.showMessage('❌ Fehler beim Lesen des Wertes: ' + error.message, 'error');
+        } finally {
+            this.hideLoading();
         }
     }
     
@@ -284,8 +269,12 @@ class MultiSensorApp {
             
             // Nach 10 Sekunden zurücksetzen
             setTimeout(async () => {
-                await this.deviceManager.setUpdateInterval(device.id, 2);
-                console.log('⏱️ Intervall zurückgesetzt auf 2s');
+                try {
+                    await this.deviceManager.setUpdateInterval(device.id, 2);
+                    console.log('⏱️ Intervall zurückgesetzt auf 2s');
+                } catch (error) {
+                    console.error('Fehler beim Zurücksetzen:', error);
+                }
             }, 10000);
             
         } catch (error) {
@@ -348,13 +337,15 @@ class MultiSensorApp {
     
     async connectToDevice(device) {
         this.showLoading(`Verbinde mit "${device.name}"...`);
-        this.hideDeviceModal();
+        this.hideDeviceModal();  // WICHTIG: Modal sofort schließen
         
         try {
             await this.deviceManager.connectToDevice(device);
+            // Bei Erfolg: Display wird durch onDeviceConnected aktualisiert
         } catch (error) {
             console.error('Verbindungsfehler:', error);
-            this.showMessage(`❌ Verbindung fehlgeschlagen: ${error.message}`, 'error');
+            this.showMessage(`❌ ${error.message}`, 'error');
+            this.updateDisplay(); // UI zurücksetzen bei Fehler
         } finally {
             this.hideLoading();
         }
@@ -369,9 +360,17 @@ class MultiSensorApp {
         
         const deviceNames = connectedDevices.map(d => d.name).join(', ');
         if (confirm(`Möchten Sie wirklich alle ${connectedDevices.length} Geräte trennen?\n\n${deviceNames}`)) {
-            await this.deviceManager.disconnectAllDevices();
-            this.updateDisplay();
-            this.showMessage(`✅ Alle Geräte getrennt`, 'success');
+            this.showLoading('Trenne Geräte...');
+            try {
+                await this.deviceManager.disconnectAllDevices();
+                this.updateDisplay();
+                this.showMessage(`✅ Alle Geräte getrennt`, 'success');
+            } catch (error) {
+                console.error('Fehler beim Trennen:', error);
+                this.showMessage('❌ Fehler beim Trennen der Geräte', 'error');
+            } finally {
+                this.hideLoading();
+            }
         }
     }
     
@@ -455,7 +454,16 @@ class MultiSensorApp {
                 const deviceId = e.target.dataset.deviceId;
                 const device = this.deviceManager.getConnectedDevice(deviceId);
                 if (device && confirm(`"${device.name}" trennen?`)) {
-                    await this.deviceManager.disconnectDevice(deviceId);
+                    this.showLoading(`Trenne "${device.name}"...`);
+                    try {
+                        await this.deviceManager.disconnectDevice(deviceId);
+                        this.updateDisplay();
+                    } catch (error) {
+                        console.error('Fehler beim Trennen:', error);
+                        this.showMessage('❌ Fehler beim Trennen', 'error');
+                    } finally {
+                        this.hideLoading();
+                    }
                 }
             });
         });
@@ -570,6 +578,7 @@ class MultiSensorApp {
     }
     
     showMessage(message, type = 'info') {
+        // Einfache Alert-Implementation
         if (type === 'error') {
             alert('❌ ' + message);
         } else if (type === 'success') {
@@ -583,5 +592,5 @@ class MultiSensorApp {
 // App starten
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new MultiSensorApp();
-    console.log('🚀 SensorDashboard mit DEBUG-FUNKTIONEN gestartet');
+    console.log('🚀 SensorDashboard App gestartet');
 });
