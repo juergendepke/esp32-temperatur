@@ -1,10 +1,11 @@
-// Device Manager für BLE Geräte - MIT DEBUG INFORMATIONEN
+// Device Manager für BLE Geräte - KOMPLETTE LÖSUNG
 class DeviceManager {
     constructor() {
         this.connectedDevices = new Map();
         this.availableDevices = new Map();
         this.eventListeners = new Map();
         this.isScanning = false;
+        this.pollingIntervals = new Map();
         
         // BLE UUIDs
         this.SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0';
@@ -134,7 +135,7 @@ class DeviceManager {
         }
     }
     
-    // Verbindung zu einem Gerät MIT DEBUGGING
+    // Verbindung zu einem Gerät - MIT NOTIFICATIONS & POLLING
     async connectToDevice(device) {
         if (this.connectedDevices.has(device.id)) {
             console.log('Gerät bereits verbunden:', device.id);
@@ -163,19 +164,23 @@ class DeviceManager {
             // 3. Geräteinformationen lesen
             console.log('📖 Lese Geräteinformationen...');
             const deviceInfo = await this.readDeviceInfo(service, device);
-            console.log('✅ Geräteinfo gelesen:', deviceInfo);
+            console.log('✅ Geräteinfo gelesen - Type:', deviceInfo.type, 'Interval:', deviceInfo.interval);
             
-            // 4. Notifications starten
-            console.log('🔔 Starte Notifications...');
-            await this.setupNotifications(service, deviceInfo);
-            console.log('✅ Notifications gestartet');
-            
-            // 5. Gerät speichern
+            // 4. Gerät speichern
             this.connectedDevices.set(deviceInfo.id, deviceInfo);
             
-            // 6. Disconnect Handler
+            // 5. Notifications starten
+            console.log('🔔 Starte Notifications...');
+            await this.setupNotifications(service, deviceInfo);
+            
+            // 6. ZUSÄTZLICH: Manuelles Polling als Backup starten
+            console.log('🔄 Starte Backup-Polling...');
+            this.startManualPolling(deviceInfo);
+            
+            // 7. Disconnect Handler
             device.device.addEventListener('gattserverdisconnected', () => {
                 console.log('🔌 Gerät getrennt:', deviceInfo.id);
+                this.stopManualPolling(deviceInfo.id);
                 this.onDeviceDisconnected(deviceInfo.id);
             });
             
@@ -238,66 +243,178 @@ class DeviceManager {
         }
     }
     
+    // NOTIFICATIONS MIT EVENT-LISTENER
     async setupNotifications(service, deviceInfo) {
+        console.log('🚀 STARTE NOTIFICATIONS SETUP...');
         const decoder = new TextDecoder();
         
-        // Temperatur Notifications
-        if (deviceInfo.type === this.DEVICE_TYPE.TEMPERATURE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
-            try {
-                console.log('   🌡️ Setup Temperatur Notifications...');
-                const tempChar = await service.getCharacteristic(this.CHAR_TEMP_UUID);
+        try {
+            // Für Temperatur-Sensoren
+            if (deviceInfo.type === this.DEVICE_TYPE.TEMPERATURE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
+                console.log('🌡️ Initialisiere Temperatur-Notifications...');
                 
-                // Event Listener für Temperatur
-                tempChar.addEventListener('characteristicvaluechanged', (event) => {
-                    const value = decoder.decode(event.target.value);
-                    console.log('📨 TEMPERATUR EMPFANGEN:', value + '°C');
-                    deviceInfo.temperature = value;
+                const tempChar = await service.getCharacteristic(this.CHAR_TEMP_UUID);
+                console.log('✅ Temperatur-Characteristic verfügbar');
+                
+                // EVENT LISTENER für Temperatur
+                const tempHandler = (event) => {
+                    try {
+                        const value = decoder.decode(event.target.value);
+                        console.log('🔥 NEUE TEMPERATUR VIA NOTIFICATION:', value + '°C');
+                        deviceInfo.temperature = value;
+                        deviceInfo.lastUpdate = new Date().toLocaleTimeString();
+                        this.emit('deviceUpdated', deviceInfo.id, {
+                            type: 'temperature',
+                            value: value
+                        });
+                    } catch (err) {
+                        console.error('Fehler beim Verarbeiten der Temperatur:', err);
+                    }
+                };
+                
+                // Event Listener ZUERST registrieren
+                tempChar.addEventListener('characteristicvaluechanged', tempHandler);
+                console.log('✅ Temperatur-Event-Listener registriert');
+                
+                // DANACH Notifications starten
+                await tempChar.startNotifications();
+                console.log('✅ Temperatur-Notifications GESTARTET');
+                
+                // SOFORT: Aktuellen Wert lesen und anzeigen
+                try {
+                    const currentValue = await tempChar.readValue();
+                    const currentTemp = decoder.decode(currentValue);
+                    console.log('📊 AKTUELLE TEMPERATUR (Sofort):', currentTemp + '°C');
+                    
+                    deviceInfo.temperature = currentTemp;
                     deviceInfo.lastUpdate = new Date().toLocaleTimeString();
                     this.emit('deviceUpdated', deviceInfo.id, {
                         type: 'temperature',
-                        value: value
+                        value: currentTemp
                     });
-                });
-                
-                // Notifications starten
-                await tempChar.startNotifications();
-                console.log('   ✅ Temperatur-Notifications aktiviert');
-                
-            } catch (error) {
-                console.error('   ❌ Temperatur-Notifications Fehler:', error);
+                } catch (e) {
+                    console.log('ℹ️ Sofort-Lesen fehlgeschlagen:', e.message);
+                }
             }
-        }
-        
-        // Spannungs Notifications
-        if (deviceInfo.type === this.DEVICE_TYPE.VOLTAGE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
-            try {
-                console.log('   ⚡ Setup Spannungs Notifications...');
-                const voltageChar = await service.getCharacteristic(this.CHAR_VOLTAGE_UUID);
+            
+            // Für Spannungs-Sensoren
+            if (deviceInfo.type === this.DEVICE_TYPE.VOLTAGE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
+                console.log('⚡ Initialisiere Spannungs-Notifications...');
                 
-                // Event Listener für Spannung
-                voltageChar.addEventListener('characteristicvaluechanged', (event) => {
-                    const value = decoder.decode(event.target.value);
-                    console.log('📨 SPANNUNG EMPFANGEN:', value + 'V');
-                    deviceInfo.voltage = value;
+                const voltageChar = await service.getCharacteristic(this.CHAR_VOLTAGE_UUID);
+                console.log('✅ Spannungs-Characteristic verfügbar');
+                
+                // EVENT LISTENER für Spannung
+                const voltageHandler = (event) => {
+                    try {
+                        const value = decoder.decode(event.target.value);
+                        console.log('⚡ NEUE SPANNUNG VIA NOTIFICATION:', value + 'V');
+                        deviceInfo.voltage = value;
+                        deviceInfo.lastUpdate = new Date().toLocaleTimeString();
+                        this.emit('deviceUpdated', deviceInfo.id, {
+                            type: 'voltage',
+                            value: value
+                        });
+                    } catch (err) {
+                        console.error('Fehler beim Verarbeiten der Spannung:', err);
+                    }
+                };
+                
+                // Event Listener ZUERST registrieren
+                voltageChar.addEventListener('characteristicvaluechanged', voltageHandler);
+                console.log('✅ Spannungs-Event-Listener registriert');
+                
+                // DANACH Notifications starten
+                await voltageChar.startNotifications();
+                console.log('✅ Spannungs-Notifications GESTARTET');
+                
+                // SOFORT: Aktuellen Wert lesen und anzeigen
+                try {
+                    const currentValue = await voltageChar.readValue();
+                    const currentVoltage = decoder.decode(currentValue);
+                    console.log('📊 AKTUELLE SPANNUNG (Sofort):', currentVoltage + 'V');
+                    
+                    deviceInfo.voltage = currentVoltage;
                     deviceInfo.lastUpdate = new Date().toLocaleTimeString();
                     this.emit('deviceUpdated', deviceInfo.id, {
                         type: 'voltage',
-                        value: value
+                        value: currentVoltage
                     });
-                });
+                } catch (e) {
+                    console.log('ℹ️ Sofort-Lesen fehlgeschlagen:', e.message);
+                }
+            }
+            
+        } catch (error) {
+            console.error('💥 FEHLER in setupNotifications:', error);
+        }
+        
+        console.log('🎉 NOTIFICATIONS SETUP ABGESCHLOSSEN');
+    }
+    
+    // MANUELLES POLLING ALS BACKUP
+    async startManualPolling(deviceInfo) {
+        console.log('🔄 STARTE MANUELLES POLLING für:', deviceInfo.name);
+        
+        // Stoppe vorhandenes Polling falls vorhanden
+        this.stopManualPolling(deviceInfo.id);
+        
+        const pollingInterval = setInterval(async () => {
+            try {
+                // Temperatur pollen
+                if (deviceInfo.type === this.DEVICE_TYPE.TEMPERATURE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
+                    const tempChar = await deviceInfo.service.getCharacteristic(this.CHAR_TEMP_UUID);
+                    const value = await tempChar.readValue();
+                    const tempValue = new TextDecoder().decode(value);
+                    
+                    console.log('📡 TEMPERATUR POLLING:', tempValue + '°C');
+                    
+                    deviceInfo.temperature = tempValue;
+                    deviceInfo.lastUpdate = new Date().toLocaleTimeString();
+                    this.emit('deviceUpdated', deviceInfo.id, {
+                        type: 'temperature',
+                        value: tempValue
+                    });
+                }
                 
-                // Notifications starten
-                await voltageChar.startNotifications();
-                console.log('   ✅ Spannungs-Notifications aktiviert');
+                // Spannung pollen
+                if (deviceInfo.type === this.DEVICE_TYPE.VOLTAGE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
+                    const voltageChar = await deviceInfo.service.getCharacteristic(this.CHAR_VOLTAGE_UUID);
+                    const value = await voltageChar.readValue();
+                    const voltageValue = new TextDecoder().decode(value);
+                    
+                    console.log('📡 SPANNUNG POLLING:', voltageValue + 'V');
+                    
+                    deviceInfo.voltage = voltageValue;
+                    deviceInfo.lastUpdate = new Date().toLocaleTimeString();
+                    this.emit('deviceUpdated', deviceInfo.id, {
+                        type: 'voltage',
+                        value: voltageValue
+                    });
+                }
                 
             } catch (error) {
-                console.error('   ❌ Spannungs-Notifications Fehler:', error);
+                console.error('❌ Polling Fehler:', error);
+                // Bei Fehler: Polling stoppen
+                this.stopManualPolling(deviceInfo.id);
             }
+        }, 2000); // Alle 2 Sekunden
+        
+        this.pollingIntervals.set(deviceInfo.id, pollingInterval);
+        console.log('✅ MANUELLES POLLING GESTARTET für', deviceInfo.name);
+    }
+    
+    stopManualPolling(deviceId) {
+        if (this.pollingIntervals.has(deviceId)) {
+            clearInterval(this.pollingIntervals.get(deviceId));
+            this.pollingIntervals.delete(deviceId);
+            console.log('⏹️ Polling gestoppt für:', deviceId);
         }
     }
     
     onDeviceDisconnected(deviceId) {
         console.log('🔌 Gerät getrennt:', deviceId);
+        this.stopManualPolling(deviceId);
         this.connectedDevices.delete(deviceId);
         this.emit('deviceDisconnected', deviceId);
     }
@@ -306,6 +423,7 @@ class DeviceManager {
         const deviceInfo = this.connectedDevices.get(deviceId);
         if (deviceInfo) {
             try {
+                this.stopManualPolling(deviceId);
                 await deviceInfo.device.gatt.disconnect();
             } catch (error) {
                 console.warn('Warnung beim Trennen:', error);
@@ -316,6 +434,12 @@ class DeviceManager {
     }
     
     async disconnectAllDevices() {
+        // Stoppe alle Polling-Intervalle
+        this.pollingIntervals.forEach((interval, deviceId) => {
+            clearInterval(interval);
+        });
+        this.pollingIntervals.clear();
+        
         const disconnectPromises = Array.from(this.connectedDevices.keys()).map(
             deviceId => this.disconnectDevice(deviceId)
         );
@@ -359,5 +483,37 @@ class DeviceManager {
     
     isScanningActive() {
         return this.isScanning;
+    }
+    
+    // Debug-Funktion: Manuell Wert lesen
+    async readCurrentValue(deviceId) {
+        const deviceInfo = this.connectedDevices.get(deviceId);
+        if (!deviceInfo) throw new Error('Gerät nicht verbunden');
+        
+        try {
+            console.log('🔍 MANUELLES LESEN für:', deviceInfo.name);
+            
+            if (deviceInfo.type === this.DEVICE_TYPE.TEMPERATURE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
+                const tempChar = await deviceInfo.service.getCharacteristic(this.CHAR_TEMP_UUID);
+                const value = await tempChar.readValue();
+                const tempValue = new TextDecoder().decode(value);
+                
+                console.log('📖 MANUELL GELESENE TEMPERATUR:', tempValue + '°C');
+                return { type: 'temperature', value: tempValue };
+            }
+            
+            if (deviceInfo.type === this.DEVICE_TYPE.VOLTAGE || deviceInfo.type === this.DEVICE_TYPE.MULTI) {
+                const voltageChar = await deviceInfo.service.getCharacteristic(this.CHAR_VOLTAGE_UUID);
+                const value = await voltageChar.readValue();
+                const voltageValue = new TextDecoder().decode(value);
+                
+                console.log('📖 MANUELL GELESENE SPANNUNG:', voltageValue + 'V');
+                return { type: 'voltage', value: voltageValue };
+            }
+            
+        } catch (error) {
+            console.error('❌ Fehler beim manuellen Lesen:', error);
+            throw error;
+        }
     }
 }
