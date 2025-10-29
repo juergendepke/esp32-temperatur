@@ -1,4 +1,4 @@
-// Haupt-Anwendungslogik - SYSTEM-DIALOG VERSION
+// Haupt-Anwendungslogik - MIT DEBUG-FUNKTIONEN
 class MultiSensorApp {
     constructor() {
         this.deviceManager = new DeviceManager();
@@ -39,6 +39,19 @@ class MultiSensorApp {
         // Apply Interval Button
         document.getElementById('applyInterval').addEventListener('click', () => {
             this.applyIntervalToAllDevices();
+        });
+        
+        // Debug Buttons
+        document.getElementById('testNotifications').addEventListener('click', () => {
+            this.testNotifications();
+        });
+        
+        document.getElementById('readCurrentValue').addEventListener('click', () => {
+            this.readCurrentValue();
+        });
+        
+        document.getElementById('forceUpdate').addEventListener('click', () => {
+            this.forceUpdate();
         });
         
         // Modal Close
@@ -170,6 +183,14 @@ class MultiSensorApp {
         console.log('✅ Gerät verbunden:', device.name);
         this.updateDisplay();
         this.showMessage(`✅ "${device.name}" erfolgreich verbunden`, 'success');
+        
+        // Debug-Info
+        console.log('🔧 Gerätedetails:', {
+            id: device.id,
+            type: device.type,
+            interval: device.interval,
+            service: device.service ? 'vorhanden' : 'fehlt'
+        });
     }
     
     onDeviceDisconnected(deviceId) {
@@ -179,7 +200,98 @@ class MultiSensorApp {
     }
     
     onDeviceUpdated(deviceId, data) {
+        console.log('📨 Daten empfangen:', deviceId, data);
         this.updateSensorDisplay(deviceId, data);
+    }
+    
+    // DEBUG-FUNKTIONEN
+    async testNotifications() {
+        const connectedDevices = this.deviceManager.getConnectedDevices();
+        if (connectedDevices.length === 0) {
+            this.showMessage('❌ Keine Geräte verbunden', 'error');
+            return;
+        }
+        
+        const device = connectedDevices[0];
+        this.showMessage(`🔔 Teste Notifications für "${device.name}"... Prüfe Browser-Konsole!`, 'info');
+        
+        console.log('🧪 ===== NOTIFICATION TEST =====');
+        console.log('🧪 Gerät:', device.name);
+        console.log('🧪 Type:', device.type);
+        console.log('🧪 Interval:', device.interval + 's');
+        console.log('🧪 Service vorhanden:', !!device.service);
+        console.log('🧪 Warte auf Daten vom ESP32...');
+        
+        // Test: Versuche manuell zu lesen
+        try {
+            const tempChar = await device.service.getCharacteristic('12345678-1234-5678-1234-56789abcdef1');
+            const value = await tempChar.readValue();
+            const decoder = new TextDecoder();
+            const tempValue = decoder.decode(value);
+            console.log('🧪 MANUELL GELESEN:', tempValue + '°C');
+        } catch (error) {
+            console.error('🧪 Fehler beim manuellen Lesen:', error);
+        }
+        
+        console.log('🧪 ===== TEST ENDE =====');
+    }
+    
+    async readCurrentValue() {
+        const connectedDevices = this.deviceManager.getConnectedDevices();
+        if (connectedDevices.length === 0) {
+            this.showMessage('❌ Keine Geräte verbunden', 'error');
+            return;
+        }
+        
+        try {
+            const device = connectedDevices[0];
+            console.log('📖 Versuche aktuellen Wert zu lesen...');
+            
+            const tempChar = await device.service.getCharacteristic('12345678-1234-5678-1234-56789abcdef1');
+            const value = await tempChar.readValue();
+            const decoder = new TextDecoder();
+            const tempValue = decoder.decode(value);
+            
+            console.log('📖 AKTUELLER WERT:', tempValue + '°C');
+            this.showMessage(`📖 Aktuelle Temperatur: ${tempValue}°C`, 'success');
+            
+            // Aktualisiere die Anzeige
+            this.updateSensorDisplay(device.id, {
+                type: 'temperature',
+                value: tempValue
+            });
+            
+        } catch (error) {
+            console.error('❌ Fehler beim Lesen:', error);
+            this.showMessage('❌ Fehler beim Lesen des Wertes: ' + error.message, 'error');
+        }
+    }
+    
+    async forceUpdate() {
+        const connectedDevices = this.deviceManager.getConnectedDevices();
+        if (connectedDevices.length === 0) {
+            this.showMessage('❌ Keine Geräte verbunden', 'error');
+            return;
+        }
+        
+        try {
+            const device = connectedDevices[0];
+            console.log('🔄 Erzwinge Daten-Update...');
+            
+            // Setze Intervall auf 1s für schnelleres Testen
+            await this.deviceManager.setUpdateInterval(device.id, 1);
+            this.showMessage('🔄 Update-Intervall auf 1s gesetzt - Daten sollten schneller kommen', 'success');
+            
+            // Nach 10 Sekunden zurücksetzen
+            setTimeout(async () => {
+                await this.deviceManager.setUpdateInterval(device.id, 2);
+                console.log('⏱️ Intervall zurückgesetzt auf 2s');
+            }, 10000);
+            
+        } catch (error) {
+            console.error('❌ Fehler beim Force-Update:', error);
+            this.showMessage('❌ Fehler: ' + error.message, 'error');
+        }
     }
     
     showDeviceModal(devices) {
@@ -471,5 +583,5 @@ class MultiSensorApp {
 // App starten
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new MultiSensorApp();
-    console.log('🚀 SensorDashboard mit SYSTEM-DIALOG gestartet');
+    console.log('🚀 SensorDashboard mit DEBUG-FUNKTIONEN gestartet');
 });
