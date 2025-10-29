@@ -1,213 +1,112 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>TempLink — ESP32 Temperatur</title>
-  <meta name="theme-color" content="#007aff">
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="icon.png">
-  <style>
-    :root {
-      --accent: #007aff;
-      --accent-light: #2f95ff;
-      --accent-dark: #0056cc;
-      --bg: #f2f2f7;
-      --card-bg: rgba(255,255,255,0.8);
-      --card-border: rgba(255,255,255,0.6);
-      --text: #1d1d1f;
-      --success: #34c759;
-      --error: #ff3b30;
-    }
-    body {
-      margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg); color: var(--text);
-      display: flex; flex-direction: column; min-height: 100vh;
-    }
-    .topbar {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 16px 20px; backdrop-filter: blur(20px);
-      background: rgba(251,251,253,0.8);
-      border-bottom: 1px solid rgba(0,0,0,0.1);
-      position: sticky; top: 0; z-index: 1000;
-    }
-    .topbar h1 { font-size: 20px; margin: 0; font-weight: 700; }
-    main { flex: 1; display: grid; gap: 20px; padding: 20px; max-width: 400px; margin: 0 auto; }
-    .card {
-      backdrop-filter: blur(30px); background: var(--card-bg);
-      border: 1px solid var(--card-border); border-radius: 20px; padding: 24px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-    }
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center;
-      padding: 12px 20px; border-radius: 12px; border: none; cursor: pointer;
-      font-weight: 600; font-size: 16px; transition: 0.3s;
-    }
-    .btn.primary { background: var(--accent); color: white; }
-    .btn.secondary { background: rgba(0,122,255,0.1); color: var(--accent); }
-    .temp-value {
-      font-size: 72px; font-weight: 800; margin: 0;
-      background: linear-gradient(135deg, var(--accent), var(--accent-light));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    }
-    .temp-meta { color: gray; }
-    #overlay {
-      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-      color: white; font-size: 18px; justify-content: center; align-items: center;
-      z-index: 2000; backdrop-filter: blur(4px);
-    }
-    .status-connected { color: var(--success); font-weight: 600; }
-    .status-disconnected { color: var(--error); font-weight: 600; }
-  </style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MultiSensor BLE Dashboard</title>
+    <meta name="theme-color" content="#007aff">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div id="overlay">🔄 Verbinde mit Gerät...</div>
+    <header class="topbar">
+        <h1>📊 SensorDashboard</h1>
+        <div class="topbar-actions">
+            <button id="scanBtn" class="btn primary">🔍 Scan Starten</button>
+            <button id="disconnectAllBtn" class="btn secondary">❌ Alle trennen</button>
+        </div>
+    </header>
 
-  <header class="topbar">
-    <h1>🌡️ TempLink</h1>
-    <button id="connectBtn" class="btn primary">🔗 Verbinden</button>
-  </header>
+    <main>
+        <!-- Geräteliste -->
+        <section class="card">
+            <div class="card-header">
+                <h3>📱 Verfügbare Geräte</h3>
+                <span id="deviceCount" class="badge">0 verbunden</span>
+            </div>
+            <div id="availableDevices" class="devices-list">
+                <div class="no-devices">
+                    <p>🔍 Keine Geräte gefunden</p>
+                    <p class="hint">Klicke auf "Scan Starten" um nach Sensoren zu suchen</p>
+                </div>
+            </div>
+        </section>
 
-  <main>
-    <section class="card">
-      <div style="text-align:center;">
-        <div class="temp-value" id="tempValue">--°C</div>
-        <div class="temp-meta">Letzte Aktualisierung: <span id="lastUpdate">—</span></div>
-      </div>
-    </section>
+        <!-- Sensor Dashboard -->
+        <section class="card">
+            <div class="card-header">
+                <h3>📊 Sensor Dashboard</h3>
+                <span id="sensorCount" class="badge">0 Sensoren</span>
+            </div>
+            <div id="sensorDashboard" class="dashboard-grid">
+                <div class="no-sensors">
+                    <p>🌡️⚡ Keine Sensoren verbunden</p>
+                    <p class="hint">Verbinde Geräte um deren Daten hier zu sehen</p>
+                </div>
+            </div>
+        </section>
 
-    <section class="card">
-      <div><strong>Status:</strong> <span id="connectionStatus" class="status-disconnected">Getrennt</span></div>
-      <div><strong>Gerät:</strong> <span id="deviceName">Nicht verbunden</span></div>
-    </section>
+        <!-- Einstellungen -->
+        <section class="card">
+            <div class="card-header">
+                <h3>⚙️ Globale Einstellungen</h3>
+            </div>
+            
+            <div class="setting-group">
+                <label class="setting-label">
+                    Update-Intervall: <span id="intervalValue" style="color: var(--accent); font-weight: 700;">2</span>s
+                </label>
+                <input type="range" id="intervalSlider" min="1" max="60" value="2" class="slider">
+                <button id="applyInterval" class="btn secondary" style="width: 100%; margin-top: 8px;">
+                    💾 Intervall übernehmen
+                </button>
+            </div>
 
-    <section class="card" style="text-align:center;">
-      <button id="notifyToggle" class="btn secondary" style="width:100%;">🔔 Benachrichtigungen aktivieren</button>
-    </section>
-  </main>
+            <div class="setting-group">
+                <label class="setting-label">
+                    Scan-Dauer: <span id="scanDurationValue" style="color: var(--accent); font-weight: 700;">10</span>s
+                </label>
+                <input type="range" id="scanDurationSlider" min="5" max="30" value="10" class="slider">
+            </div>
+        </section>
 
-  <script>
-    const SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0'.toLowerCase();
-    const CHAR_TEMP_UUID = '12345678-1234-5678-1234-56789abcdef1'.toLowerCase();
+        <!-- Status Information -->
+        <section class="card">
+            <div class="row">
+                <strong>🔗 BLE Status</strong>
+                <span id="bleStatus" class="status-available">Verfügbar</span>
+            </div>
+            <div class="row">
+                <strong>📱 Verbundene Geräte</strong>
+                <span id="connectedDevicesCount">0</span>
+            </div>
+            <div class="row">
+                <strong>🕒 Letzter Scan</strong>
+                <span id="lastScanTime">—</span>
+            </div>
+        </section>
+    </main>
 
-    let device, service, characteristic, notifying = false;
-    const tempValue = document.getElementById('tempValue');
-    const lastUpdate = document.getElementById('lastUpdate');
-    const deviceNameEl = document.getElementById('deviceName');
-    const connectBtn = document.getElementById('connectBtn');
-    const connectionStatus = document.getElementById('connectionStatus');
-    const notifyToggle = document.getElementById('notifyToggle');
-    const overlay = document.getElementById('overlay');
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-spinner"></div>
+        <p id="loadingText">Verbinde mit Gerät...</p>
+    </div>
 
-    function showOverlay(show) { overlay.style.display = show ? 'flex' : 'none'; }
+    <!-- Device Selection Modal -->
+    <div id="deviceModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🔍 Gerät auswählen</h3>
+                <button id="closeModal" class="btn-close">×</button>
+            </div>
+            <div id="deviceList" class="modal-body">
+                <!-- Wird dynamisch gefüllt -->
+            </div>
+        </div>
+    </div>
 
-    function updateConnectionStatus(connected) {
-      if (connected) {
-        connectionStatus.textContent = "Verbunden";
-        connectionStatus.className = "status-connected";
-        connectBtn.textContent = "✅ Verbunden";
-        connectBtn.classList.remove('primary');
-        connectBtn.classList.add('secondary');
-      } else {
-        connectionStatus.textContent = "Getrennt";
-        connectionStatus.className = "status-disconnected";
-        connectBtn.textContent = "🔗 Verbinden";
-        connectBtn.classList.add('primary');
-        connectBtn.classList.remove('secondary');
-      }
-    }
-
-    connectBtn.addEventListener('click', async () => {
-      if (!navigator.bluetooth) {
-        alert("❌ Dein Browser unterstützt kein WebBluetooth.\nBitte verwende Chrome, Edge oder Bluefy.");
-        return;
-      }
-
-      try {
-        showOverlay(true);
-
-        // ✅ Wichtig: Alle Geräte akzeptieren, um Filterprobleme zu vermeiden
-        const opts = {
-          acceptAllDevices: true,
-          optionalServices: [SERVICE_UUID]
-        };
-
-        device = await navigator.bluetooth.requestDevice(opts);
-        deviceNameEl.textContent = device.name || 'ESP32_Temp';
-
-        const server = await device.gatt.connect();
-        service = await server.getPrimaryService(SERVICE_UUID);
-        characteristic = await service.getCharacteristic(CHAR_TEMP_UUID);
-
-        updateConnectionStatus(true);
-        startNotifications();
-
-        device.addEventListener('gattserverdisconnected', () => {
-          updateConnectionStatus(false);
-        });
-
-      } catch (e) {
-        console.error('Verbindungsfehler:', e);
-        alert('⚠️ Verbindung fehlgeschlagen oder abgebrochen.\n' + e);
-        updateConnectionStatus(false);
-      } finally {
-        showOverlay(false);
-      }
-    });
-
-    async function startNotifications() {
-      try {
-        await characteristic.startNotifications();
-        characteristic.addEventListener('characteristicvaluechanged', ev => handleTemp(ev.target.value));
-        notifying = true;
-        notifyToggle.textContent = "🔕 Benachrichtigungen stoppen";
-      } catch (e) {
-        console.error('Notification Fehler:', e);
-      }
-    }
-
-    async function stopNotifications() {
-      try {
-        await characteristic.stopNotifications();
-        notifying = false;
-        notifyToggle.textContent = "🔔 Benachrichtigungen aktivieren";
-      } catch (e) { console.error('Stop Fehler:', e); }
-    }
-
-    notifyToggle.addEventListener('click', async () => {
-      if (!characteristic) return alert('Keine aktive Verbindung.');
-      notifying ? await stopNotifications() : await startNotifications();
-    });
-
-    function handleTemp(dataView) {
-      const decoder = new TextDecoder('utf-8');
-      const raw = decoder.decode(dataView.buffer);
-      tempValue.textContent = raw + '°C';
-      lastUpdate.textContent = new Date().toLocaleTimeString();
-    }
-
-    // 🔁 Automatische Wiederverbindung
-    window.addEventListener('load', async () => {
-      try {
-        const devices = await navigator.bluetooth.getDevices();
-        if (devices.length > 0) {
-          device = devices[0];
-          deviceNameEl.textContent = device.name || 'ESP32_TempSim';
-          const server = await device.gatt.connect();
-          service = await server.getPrimaryService(SERVICE_UUID);
-          characteristic = await service.getCharacteristic(CHAR_TEMP_UUID);
-          updateConnectionStatus(true);
-          startNotifications();
-        }
-      } catch (e) {
-        console.log('Kein gespeichertes Gerät gefunden:', e);
-      }
-    });
-
-    // 🔄 Service Worker Registrierung
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').then(() => console.log('Service Worker aktiv'));
-    }
-  </script>
+    <script src="deviceManager.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
