@@ -291,6 +291,11 @@
             color: var(--warning-color);
         }
 
+        .device-status.connecting {
+            background: rgba(255, 204, 0, 0.15);
+            color: var(--warning-color);
+        }
+
         .sensor-data {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -370,6 +375,15 @@
 
         .btn-small:hover {
             background: var(--primary-dark);
+        }
+
+        .btn-small:disabled {
+            background: var(--text-secondary-light);
+            cursor: not-allowed;
+        }
+
+        body.dark-mode .btn-small:disabled {
+            background: var(--text-secondary-dark);
         }
 
         .connection-mode {
@@ -1009,10 +1023,12 @@
                 this.batteryVoltage = '--';
                 this.lastUpdate = null;
                 this.connection = null;
-                this.status = 'advertising'; // 'advertising', 'connected', 'alarm'
+                this.status = 'advertising'; // 'advertising', 'connected', 'alarm', 'connecting'
                 this.characteristics = null;
                 this.connectionRequested = false;
                 this.lastAdvertisement = null;
+                this.deviceObject = deviceInfo.device || null;
+                this.isConnecting = false;
             }
 
             // Verarbeite Advertising-Daten
@@ -1060,23 +1076,42 @@
                 console.log(`Connection requested for device: ${this.name}`);
             }
 
-            // Verbinde mit Gerät
-            async connect(device) {
+            // Verbinde mit Gerät - KORRIGIERTE VERSION
+            async connect(bluetoothDevice) {
+                if (this.isConnecting) {
+                    console.log('Already connecting to device...');
+                    return false;
+                }
+
+                this.isConnecting = true;
+                this.status = 'connecting';
+                updateUI();
+
                 try {
                     console.log(`Connecting to device: ${this.name}`);
-                    this.status = 'connected';
                     
-                    const server = await device.gatt.connect();
+                    // Warte kurz bevor Verbindung aufgebaut wird
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    // Stelle Verbindung her
+                    const server = await bluetoothDevice.gatt.connect();
                     this.connection = server;
+                    this.deviceObject = bluetoothDevice;
                     
+                    console.log('GATT Server connected, getting service...');
+                    
+                    // Warte kurz bevor Service abgerufen wird
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                    
+                    // Service abrufen
                     const service = await server.getPrimaryService(SERVICE_UUID);
+                    console.log('Service found, getting characteristics...');
                     
                     // Characteristics für Echtzeit-Daten
                     const tempChar = await service.getCharacteristic(CHARACTERISTIC_UUID_TEMP);
                     const battChar = await service.getCharacteristic(CHARACTERISTIC_UUID_BATT);
-                    const alertChar = await service.getCharacteristic(CHARACTERISTIC_UUID_ALERT);
                     
-                    this.characteristics = { tempChar, battChar, alertChar };
+                    this.characteristics = { tempChar, battChar };
                     
                     // Initiale Werte lesen
                     await this.readCurrentValues();
@@ -1091,16 +1126,23 @@
                         (event) => this.handleBatteryUpdate(event));
                     
                     // Disconnect Event
-                    device.addEventListener('gattserverdisconnected', () => {
+                    bluetoothDevice.addEventListener('gattserverdisconnected', () => {
                         this.handleDisconnect();
                     });
                     
+                    this.status = 'connected';
+                    this.connectionRequested = false;
+                    this.isConnecting = false;
+                    
                     console.log(`Successfully connected to: ${this.name}`);
+                    showToast(`Verbunden mit ${this.name}`);
+                    updateUI();
                     return true;
                     
                 } catch (error) {
                     console.error(`Connection error for ${this.name}:`, error);
                     this.handleDisconnect();
+                    showToast(`Verbindungsfehler: ${error.message}`);
                     return false;
                 }
             }
@@ -1128,19 +1170,27 @@
             }
 
             handleTemperatureUpdate(event) {
-                const value = event.target.value;
-                const text = new TextDecoder().decode(value);
-                this.temperature = parseFloat(text) || '--';
-                this.lastUpdate = new Date();
-                updateUI();
+                try {
+                    const value = event.target.value;
+                    const text = new TextDecoder().decode(value);
+                    this.temperature = parseFloat(text) || '--';
+                    this.lastUpdate = new Date();
+                    updateUI();
+                } catch (error) {
+                    console.error('Error handling temperature update:', error);
+                }
             }
 
             handleBatteryUpdate(event) {
-                const value = event.target.value;
-                const text = new TextDecoder().decode(value);
-                this.batteryVoltage = parseFloat(text) || '--';
-                this.lastUpdate = new Date();
-                updateUI();
+                try {
+                    const value = event.target.value;
+                    const text = new TextDecoder().decode(value);
+                    this.batteryVoltage = parseFloat(text) || '--';
+                    this.lastUpdate = new Date();
+                    updateUI();
+                } catch (error) {
+                    console.error('Error handling battery update:', error);
+                }
             }
 
             handleDisconnect() {
@@ -1148,6 +1198,7 @@
                 this.characteristics = null;
                 this.status = 'advertising';
                 this.connectionRequested = false;
+                this.isConnecting = false;
                 console.log(`Disconnected from: ${this.name}`);
                 updateUI();
             }
@@ -1155,7 +1206,11 @@
             // Trenne Verbindung
             disconnect() {
                 if (this.connection) {
-                    this.connection.disconnect();
+                    try {
+                        this.connection.disconnect();
+                    } catch (error) {
+                        console.error('Error disconnecting:', error);
+                    }
                 }
                 this.handleDisconnect();
             }
@@ -1293,21 +1348,17 @@
                 
                 console.log('Starting Smart Hybrid Scan...');
                 
-                // Scanne nach allen BLE Geräten
+                // Scanne nach ESP32 Geräten
                 const device = await navigator.bluetooth.requestDevice({
-                    acceptAllDevices: true,
+                    filters: [
+                        { name: 'ESP32-SmartSensor' },
+                        { namePrefix: 'ESP32' }
+                    ],
                     optionalServices: [SERVICE_UUID]
                 });
                 
-                // Prüfe ob es ein ESP32 Sensor ist
-                if (device.name && device.name.includes('ESP32')) {
+                if (device) {
                     await processDiscoveredDevice(device);
-                } else {
-                    // Versuche Manufacturer Data auszulesen
-                    const manufacturerData = await device.getManufacturerData?.();
-                    if (manufacturerData) {
-                        await processDiscoveredDevice(device);
-                    }
                 }
                 
             } catch (error) {
@@ -1334,23 +1385,26 @@
                     existingDevice = new SmartDevice(deviceInfo);
                     appState.devices.push(existingDevice);
                     showToast(`Neuer Sensor gefunden: ${deviceInfo.name}`);
+                } else {
+                    existingDevice.deviceObject = device;
                 }
 
                 // Versuche Manufacturer Data zu lesen
                 try {
-                    const manufacturerData = await device.getManufacturerData?.();
-                    if (manufacturerData) {
-                        existingDevice.processAdvertisementData(manufacturerData);
+                    if (device.getManufacturerData) {
+                        const manufacturerData = await device.getManufacturerData();
+                        if (manufacturerData) {
+                            existingDevice.processAdvertisementData(manufacturerData);
+                        }
                     }
                 } catch (e) {
-                    console.log('No manufacturer data available');
+                    console.log('No manufacturer data available or accessible');
                 }
 
                 // Prüfe ob Verbindung benötigt wird
                 if (appState.settings.autoConnectAlarm && existingDevice.needsConnection()) {
                     console.log('Alarm condition detected - connecting to device');
                     await existingDevice.connect(device);
-                    showToast(`Alarm: Verbindung zu ${existingDevice.name} hergestellt`);
                 }
 
                 updateUI();
@@ -1359,6 +1413,7 @@
                 
             } catch (error) {
                 console.error('Error processing device:', error);
+                showToast('Fehler beim Verarbeiten des Geräts');
             }
         }
 
@@ -1378,7 +1433,9 @@
                         <strong>${device.name}</strong>
                         <div class="device-rssi">${device.status} • ${device.temperature !== '--' ? device.temperature.toFixed(1) + '°C' : '--'} • ${device.batteryVoltage !== '--' ? device.batteryVoltage.toFixed(2) + 'V' : '--'}</div>
                     </div>
-                    <button class="btn-small" onclick="requestConnection('${device.id}')">Verbinden</button>
+                    <button class="btn-small" onclick="requestConnection('${device.id}')" ${device.isConnecting ? 'disabled' : ''}>
+                        ${device.isConnecting ? 'Verbinde...' : 'Verbinden'}
+                    </button>
                 `;
                 deviceList.appendChild(deviceItem);
             });
@@ -1386,14 +1443,13 @@
 
         async function requestConnection(deviceId) {
             const device = appState.devices.find(d => d.id === deviceId);
-            if (device && device.device) {
+            if (device && device.deviceObject) {
                 device.requestConnection();
-                const connected = await device.connect(device.device);
-                if (connected) {
-                    showToast(`Verbunden mit ${device.name}`);
-                }
+                await device.connect(device.deviceObject);
                 updateUI();
                 closeModal();
+            } else {
+                showToast('Gerät nicht verfügbar - bitte neu scannen');
             }
         }
 
@@ -1444,10 +1500,12 @@
             const isAlarm = isLowBattery || isHighTemp || device.needsConnection();
             
             const cardClass = device.status === 'connected' ? 'connected' : 
-                             device.status === 'alarm' ? 'alarm' : 'advertising';
+                             device.status === 'alarm' ? 'alarm' : 
+                             device.status === 'connecting' ? 'alarm' : 'advertising';
             
             const statusClass = device.status;
             const statusText = device.status === 'connected' ? 'Verbunden' : 
+                              device.status === 'connecting' ? 'Verbinde...' :
                               device.status === 'alarm' ? 'Alarm ⚠️' : 'Advertising';
             
             const connectionMode = device.status === 'connected' ? 'Echtzeit' : 'Battery-Saver';
@@ -1478,8 +1536,8 @@
                         </div>
                     </div>
                     <div class="device-actions">
-                        <button class="btn-small" onclick="requestConnection('${device.id}')">
-                            ${device.status === 'connected' ? 'Trennen' : 'Verbinden'}
+                        <button class="btn-small" onclick="requestConnection('${device.id}')" ${device.isConnecting ? 'disabled' : ''}>
+                            ${device.isConnecting ? 'Verbinde...' : (device.status === 'connected' ? 'Trennen' : 'Verbinden')}
                         </button>
                         <span class="connection-mode">
                             ${connectionMode}
