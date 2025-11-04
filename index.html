@@ -2,11 +2,10 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>ESP32 Sensor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Sensor Monitor</title>
     <meta name="theme-color" content="#34C759">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <style>
         * {
             margin: 0;
@@ -26,11 +25,49 @@
         .header {
             text-align: center;
             margin-bottom: 30px;
+            padding: 20px;
         }
         
         .header h1 {
             color: #34C759;
-            margin-bottom: 10px;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            color: #8E8E93;
+            font-size: 16px;
+        }
+        
+        .btn {
+            background: #34C759;
+            color: white;
+            border: none;
+            padding: 16px 24px;
+            border-radius: 12px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 16px;
+            transition: background-color 0.2s;
+        }
+        
+        .btn:hover {
+            background: #2A9D46;
+        }
+        
+        .btn:disabled {
+            background: #C7C7CC;
+            cursor: not-allowed;
+        }
+        
+        .btn-scan {
+            background: #007AFF;
+        }
+        
+        .btn-scan:hover {
+            background: #0056CC;
         }
         
         .device-card {
@@ -51,14 +88,14 @@
         
         .device-name {
             font-size: 18px;
-            font-weight: bold;
+            font-weight: 600;
         }
         
         .device-status {
             padding: 6px 12px;
             border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
+            font-size: 13px;
+            font-weight: 600;
         }
         
         .status-connected {
@@ -66,57 +103,51 @@
             color: #34C759;
         }
         
-        .status-advertising {
-            background: rgba(0, 122, 255, 0.15);
-            color: #007AFF;
+        .status-disconnected {
+            background: rgba(255, 59, 48, 0.15);
+            color: #FF3B30;
         }
         
         .sensor-data {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 15px;
+            gap: 16px;
+            margin-bottom: 20px;
         }
         
         .sensor-item {
             text-align: center;
-            padding: 15px;
+            padding: 20px;
             background: #f2f2f7;
             border-radius: 12px;
         }
         
         .sensor-value {
             font-size: 32px;
-            font-weight: bold;
+            font-weight: 700;
             color: #34C759;
+            margin-bottom: 4px;
         }
         
         .sensor-label {
             font-size: 14px;
             color: #8E8E93;
-            margin-top: 5px;
+            font-weight: 500;
         }
         
-        .btn {
-            background: #34C759;
-            color: white;
-            border: none;
-            padding: 15px 20px;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            width: 100%;
-            margin-bottom: 10px;
+        .battery-warning {
+            background: rgba(255, 59, 48, 0.1);
         }
         
-        .btn:disabled {
-            background: #C7C7CC;
-            cursor: not-allowed;
+        .battery-warning .sensor-value {
+            color: #FF3B30;
         }
         
-        .btn-scan {
-            background: #007AFF;
+        .last-update {
+            text-align: center;
+            font-size: 12px;
+            color: #8E8E93;
+            margin-top: 16px;
         }
         
         .loading {
@@ -134,39 +165,41 @@
             100% { transform: rotate(360deg); }
         }
         
+        .hidden {
+            display: none;
+        }
+        
         .log {
             background: #1C1C1E;
             color: white;
-            padding: 15px;
+            padding: 16px;
             border-radius: 12px;
-            font-family: monospace;
+            font-family: 'Courier New', monospace;
             font-size: 12px;
+            line-height: 1.4;
             max-height: 200px;
             overflow-y: auto;
             margin-top: 20px;
-        }
-        
-        .hidden {
-            display: none;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🌡️ ESP32 Sensor</h1>
-        <p>Smart Hybrid Mode - Stromsparend & Echtzeit</p>
+        <h1>🌡️ ESP32 Sensor Monitor</h1>
+        <p>Einfache und zuverlässige Verbindung</p>
     </div>
 
     <button class="btn btn-scan" id="scanBtn">
-        🔍 ESP32 Scannen
+        🔍 ESP32 Sensor suchen
     </button>
 
     <div id="deviceContainer" class="hidden">
         <div class="device-card">
             <div class="device-header">
-                <div class="device-name" id="deviceName">ESP32-SmartSensor</div>
-                <div class="device-status" id="deviceStatus">Advertising</div>
+                <div class="device-name" id="deviceName">ESP32-Temp-Sensor</div>
+                <div class="device-status status-disconnected" id="deviceStatus">Getrennt</div>
             </div>
+            
             <div class="sensor-data">
                 <div class="sensor-item">
                     <div class="sensor-value" id="tempValue">--</div>
@@ -177,25 +210,34 @@
                     <div class="sensor-label">Batterie</div>
                 </div>
             </div>
+            
             <button class="btn" id="connectBtn">Verbinden</button>
             <button class="btn" id="disconnectBtn" style="background: #FF3B30;">Trennen</button>
+            
+            <div class="last-update" id="lastUpdate">
+                Noch keine Daten empfangen
+            </div>
         </div>
     </div>
 
     <div class="log" id="log">
-        > App gestartet<br>
-        > Bereit zum Scannen...
+        [INFO] App gestartet
+        [INFO] Klicke auf "ESP32 Sensor suchen"
     </div>
 
     <script>
+        // Bluetooth UUIDs
         const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
         const CHARACTERISTIC_UUID_TEMP = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
         const CHARACTERISTIC_UUID_BATT = 'beb5483e-36e1-4688-b7f5-ea07361b26a9';
 
+        // Globale Variablen
         let connectedDevice = null;
         let temperatureCharacteristic = null;
         let batteryCharacteristic = null;
+        let isConnected = false;
 
+        // DOM Elements
         const scanBtn = document.getElementById('scanBtn');
         const connectBtn = document.getElementById('connectBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
@@ -204,82 +246,89 @@
         const deviceStatus = document.getElementById('deviceStatus');
         const tempValue = document.getElementById('tempValue');
         const battValue = document.getElementById('battValue');
+        const lastUpdate = document.getElementById('lastUpdate');
         const log = document.getElementById('log');
 
+        // Log-Funktion
         function addLog(message) {
-            log.innerHTML += '> ' + message + '<br>';
+            const timestamp = new Date().toLocaleTimeString();
+            log.innerHTML += `[${timestamp}] ${message}<br>`;
             log.scrollTop = log.scrollHeight;
         }
 
+        // Scan-Funktion
         async function startScan() {
             if (!navigator.bluetooth) {
-                addLog('ERROR: Web Bluetooth nicht unterstützt');
+                addLog('ERROR: Web Bluetooth wird nicht unterstützt');
                 addLog('Bitte Bluefy Browser auf iOS verwenden');
                 return;
             }
 
             try {
-                addLog('Starte Scan...');
+                addLog('Starte Bluetooth Scan...');
                 scanBtn.innerHTML = '<span class="loading"></span> Scanne...';
                 scanBtn.disabled = true;
 
+                // Nach ESP32 Geräten suchen
                 const device = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: 'ESP32-SmartSensor' }],
+                    filters: [
+                        { name: 'ESP32-Temp-Sensor' },
+                        { namePrefix: 'ESP32' }
+                    ],
                     optionalServices: [SERVICE_UUID]
                 });
 
-                addLog('Gerät gefunden: ' + device.name);
+                addLog(`Gerät gefunden: ${device.name}`);
                 
                 // Device-Info anzeigen
                 deviceName.textContent = device.name;
                 deviceContainer.classList.remove('hidden');
                 
-                // Verbindung herstellen
+                // Verbindung automatisch herstellen
                 await connectToDevice(device);
 
             } catch (error) {
-                if (error.name !== 'NotFoundError') {
-                    addLog('Scan Fehler: ' + error.message);
+                if (error.name === 'NotFoundError') {
+                    addLog('Kein ESP32 Gerät gefunden');
                 } else {
-                    addLog('Kein Gerät gefunden');
+                    addLog(`Scan Fehler: ${error.message}`);
                 }
             } finally {
-                scanBtn.innerHTML = '🔍 ESP32 Scannen';
+                scanBtn.innerHTML = '🔍 ESP32 Sensor suchen';
                 scanBtn.disabled = false;
             }
         }
 
+        // Verbindungs-Funktion
         async function connectToDevice(device) {
             try {
-                addLog('Verbinde mit Gerät...');
+                addLog('Stelle Verbindung her...');
                 deviceStatus.textContent = 'Verbinde...';
                 deviceStatus.className = 'device-status status-connected';
                 connectBtn.disabled = true;
 
-                // Schritt 1: GATT Server verbinden
-                addLog('Stelle GATT Verbindung her...');
+                // 1. GATT Server verbinden
+                addLog('Verbinde mit GATT Server...');
                 const server = await device.gatt.connect();
                 connectedDevice = device;
                 
-                addLog('GATT verbunden, lese Services...');
-
-                // Schritt 2: Warte kurz bevor Services gelesen werden
+                // Kurze Pause für Stabilität
                 await new Promise(resolve => setTimeout(resolve, 100));
 
-                // Schritt 3: Service lesen
+                // 2. Service lesen
+                addLog('Lese Service...');
                 const service = await server.getPrimaryService(SERVICE_UUID);
-                addLog('Service gefunden, lese Characteristics...');
-
-                // Schritt 4: Warte kurz vor Characteristics
+                
+                // Kurze Pause für Stabilität
                 await new Promise(resolve => setTimeout(resolve, 50));
 
-                // Schritt 5: Characteristics lesen
+                // 3. Characteristics lesen
+                addLog('Lese Characteristics...');
                 temperatureCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID_TEMP);
                 batteryCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID_BATT);
-                
-                addLog('Characteristics gefunden, starte Notifications...');
 
-                // Schritt 6: Notifications starten
+                // 4. Notifications starten
+                addLog('Starte Notifications...');
                 await temperatureCharacteristic.startNotifications();
                 await batteryCharacteristic.startNotifications();
 
@@ -289,84 +338,126 @@
                 batteryCharacteristic.addEventListener('characteristicvaluechanged', 
                     handleBatteryUpdate);
 
-                // Initiale Werte lesen
+                // 5. Initiale Werte lesen
                 await readCurrentValues();
 
-                // Disconnect Event
+                // 6. Disconnect Event Handler
                 device.addEventListener('gattserverdisconnected', onDisconnected);
 
+                // Status aktualisieren
+                isConnected = true;
                 deviceStatus.textContent = 'Verbunden';
-                connectBtn.disabled = true;
                 disconnectBtn.disabled = false;
                 
-                addLog('✅ Erfolgreich verbunden - Empfange Echtzeit-Daten');
+                addLog('✅ Verbindung erfolgreich - Empfange Echtzeit-Daten');
 
             } catch (error) {
-                addLog('❌ Verbindungsfehler: ' + error.message);
+                addLog(`❌ Verbindungsfehler: ${error.message}`);
                 deviceStatus.textContent = 'Fehler';
                 connectBtn.disabled = false;
                 
-                // Bei Fehler: Verbindung trennen
+                // Bei Fehler Verbindung trennen
                 if (connectedDevice && connectedDevice.gatt.connected) {
                     connectedDevice.gatt.disconnect();
                 }
-                connectedDevice = null;
+                resetConnection();
             }
         }
 
+        // Aktuelle Werte lesen
         async function readCurrentValues() {
             try {
                 if (temperatureCharacteristic) {
                     const tempValueData = await temperatureCharacteristic.readValue();
                     const tempText = new TextDecoder().decode(tempValueData);
-                    tempValue.textContent = parseFloat(tempText).toFixed(1) + '°C';
+                    const temp = parseFloat(tempText);
+                    tempValue.textContent = temp.toFixed(1);
+                    updateBatteryWarning(temp);
                 }
                 
                 if (batteryCharacteristic) {
                     const battValueData = await batteryCharacteristic.readValue();
                     const battText = new TextDecoder().decode(battValueData);
-                    battValue.textContent = parseFloat(battText).toFixed(2) + 'V';
+                    const batt = parseFloat(battText);
+                    battValue.textContent = batt.toFixed(2);
+                    updateBatteryWarning(null, batt);
                 }
+                
+                lastUpdate.textContent = `Aktualisiert: ${new Date().toLocaleTimeString()}`;
+                
             } catch (error) {
-                addLog('Fehler beim Lesen der Werte: ' + error.message);
+                addLog('Fehler beim Lesen der Werte');
             }
         }
 
+        // Temperatur Update Handler
         function handleTemperatureUpdate(event) {
             try {
                 const value = event.target.value;
                 const text = new TextDecoder().decode(value);
-                tempValue.textContent = parseFloat(text).toFixed(1) + '°C';
+                const temp = parseFloat(text);
+                tempValue.textContent = temp.toFixed(1);
+                updateBatteryWarning(temp);
+                lastUpdate.textContent = `Aktualisiert: ${new Date().toLocaleTimeString()}`;
             } catch (error) {
                 addLog('Fehler bei Temperatur-Update');
             }
         }
 
+        // Batterie Update Handler
         function handleBatteryUpdate(event) {
             try {
                 const value = event.target.value;
                 const text = new TextDecoder().decode(value);
-                battValue.textContent = parseFloat(text).toFixed(2) + 'V';
+                const batt = parseFloat(text);
+                battValue.textContent = batt.toFixed(2);
+                updateBatteryWarning(null, batt);
+                lastUpdate.textContent = `Aktualisiert: ${new Date().toLocaleTimeString()}`;
             } catch (error) {
                 addLog('Fehler bei Batterie-Update');
             }
         }
 
+        // Batterie-Warnung anzeigen
+        function updateBatteryWarning(temp, batt) {
+            const batteryItem = document.querySelector('.sensor-item:nth-child(2)');
+            if (batt !== undefined && batt < 3.6) {
+                batteryItem.classList.add('battery-warning');
+            } else {
+                batteryItem.classList.remove('battery-warning');
+            }
+        }
+
+        // Disconnect Handler
         function onDisconnected() {
             addLog('🔌 Verbindung getrennt');
+            resetConnection();
+        }
+
+        // Verbindung zurücksetzen
+        function resetConnection() {
+            isConnected = false;
             deviceStatus.textContent = 'Getrennt';
-            deviceStatus.className = 'device-status status-advertising';
+            deviceStatus.className = 'device-status status-disconnected';
             connectBtn.disabled = false;
             disconnectBtn.disabled = true;
             tempValue.textContent = '--';
             battValue.textContent = '--';
+            lastUpdate.textContent = 'Verbindung getrennt';
             connectedDevice = null;
+            
+            // Battery Warning entfernen
+            const batteryItem = document.querySelector('.sensor-item:nth-child(2)');
+            batteryItem.classList.remove('battery-warning');
         }
 
+        // Manuell trennen
         function disconnectDevice() {
             if (connectedDevice && connectedDevice.gatt.connected) {
                 connectedDevice.gatt.disconnect();
             }
+            resetConnection();
+            addLog('Manuell getrennt');
         }
 
         // Event Listeners
@@ -378,7 +469,8 @@
         });
         disconnectBtn.addEventListener('click', disconnectDevice);
 
-        addLog('App bereit - Klicke "ESP32 Scannen"');
+        // App Info
+        addLog('Bereit - Klicke auf "ESP32 Sensor suchen"');
     </script>
 </body>
 </html>
