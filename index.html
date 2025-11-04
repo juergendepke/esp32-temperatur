@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>ESP32 Sensor Monitor</title>
+    <title>ESP32 Smart Sensor</title>
     <meta name="theme-color" content="#34C759">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Sensor Monitor">
+    <meta name="apple-mobile-web-app-title" content="Smart Sensor">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌡️</text></svg>">
     <style>
-        /* Alle vorherigen CSS-Stile bleiben gleich */
         :root {
             --primary-color: #34C759;
             --primary-dark: #2A9D46;
@@ -26,6 +25,7 @@
             --danger-color: #FF3B30;
             --warning-color: #FF9500;
             --connected-color: #34C759;
+            --advertising-color: #007AFF;
             --disconnected-color: #FF3B30;
             --scanning-color: #007AFF;
             --header-height: 60px;
@@ -206,6 +206,21 @@
             border-color: var(--connected-color);
         }
 
+        .device-card.advertising {
+            border-color: var(--advertising-color);
+        }
+
+        .device-card.alarm {
+            border-color: var(--warning-color);
+            animation: pulse-alarm 2s infinite;
+        }
+
+        @keyframes pulse-alarm {
+            0% { border-color: var(--warning-color); }
+            50% { border-color: transparent; }
+            100% { border-color: var(--warning-color); }
+        }
+
         .device-card::before {
             content: '';
             position: absolute;
@@ -219,6 +234,17 @@
         }
 
         .device-card.connected::before {
+            background: var(--connected-color);
+            opacity: 1;
+        }
+
+        .device-card.advertising::before {
+            background: var(--advertising-color);
+            opacity: 1;
+        }
+
+        .device-card.alarm::before {
+            background: var(--warning-color);
             opacity: 1;
         }
 
@@ -250,14 +276,19 @@
             color: var(--connected-color);
         }
 
+        .device-status.advertising {
+            background: rgba(0, 122, 255, 0.15);
+            color: var(--advertising-color);
+        }
+
         .device-status.disconnected {
             background: rgba(255, 59, 48, 0.15);
             color: var(--disconnected-color);
         }
 
-        .device-status.scanning {
-            background: rgba(0, 122, 255, 0.15);
-            color: var(--scanning-color);
+        .device-status.alarm {
+            background: rgba(255, 149, 0, 0.15);
+            color: var(--warning-color);
         }
 
         .sensor-data {
@@ -310,6 +341,45 @@
 
         .battery-warning .sensor-value {
             color: var(--danger-color);
+        }
+
+        .device-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 16px 0;
+            padding-top: 16px;
+            border-top: 1px solid rgba(0,0,0,0.1);
+        }
+
+        body.dark-mode .device-actions {
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .btn-small {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-small:hover {
+            background: var(--primary-dark);
+        }
+
+        .connection-mode {
+            font-size: 12px;
+            color: var(--text-secondary-light);
+            font-weight: 600;
+        }
+
+        body.dark-mode .connection-mode {
+            color: var(--text-secondary-dark);
         }
 
         .last-update {
@@ -734,12 +804,45 @@
                 transform: translateX(-50%) translateY(0);
             }
         }
+
+        /* Power Stats */
+        .power-stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 16px 0;
+            padding: 12px;
+            background: var(--background-light);
+            border-radius: 12px;
+        }
+
+        body.dark-mode .power-stats {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .power-stat {
+            text-align: center;
+        }
+
+        .power-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .power-label {
+            font-size: 12px;
+            color: var(--text-secondary-light);
+        }
+
+        body.dark-mode .power-label {
+            color: var(--text-secondary-dark);
+        }
     </style>
 </head>
 <body>
     <div class="app-container safe-area">
         <header class="app-header">
-            <h1 class="header-title">Sensor Monitor</h1>
+            <h1 class="header-title">Smart Sensor</h1>
             <div class="header-actions">
                 <button class="icon-btn" id="themeToggle">🌙</button>
                 <button class="icon-btn" id="refreshBtn">↻</button>
@@ -749,11 +852,26 @@
         <main class="app-main">
             <div class="welcome-screen" id="welcomeScreen">
                 <div class="welcome-icon">🌡️</div>
-                <h1 class="welcome-title">Sensor Monitor</h1>
-                <p class="welcome-subtitle">Überwachen Sie Temperatur und Akkustand Ihrer ESP32 Sensoren in Echtzeit</p>
+                <h1 class="welcome-title">Smart Sensor Monitor</h1>
+                <p class="welcome-subtitle">Intelligente Überwachung mit stromsparendem Hybrid-Modus für maximale Akkulaufzeit</p>
                 <button class="btn btn-scan" id="scanBtn">
-                    <span>ESP32 Scannen</span>
+                    <span>Smart Scan Starten</span>
                 </button>
+                
+                <div class="power-stats">
+                    <div class="power-stat">
+                        <div class="power-value">3-6 Wochen</div>
+                        <div class="power-label">Akkulaufzeit</div>
+                    </div>
+                    <div class="power-stat">
+                        <div class="power-value">~1mAh/Tag</div>
+                        <div class="power-label">Verbrauch</div>
+                    </div>
+                    <div class="power-stat">
+                        <div class="power-value">2s</div>
+                        <div class="power-label">Update</div>
+                    </div>
+                </div>
             </div>
 
             <div class="devices-grid hidden" id="devicesContainer">
@@ -761,9 +879,9 @@
             </div>
 
             <div class="empty-state hidden" id="emptyState">
-                <div class="empty-icon">📱</div>
-                <h3>Keine Geräte verbunden</h3>
-                <p class="mt-4">Scannen Sie nach ESP32 Sensoren, um Daten anzuzeigen</p>
+                <div class="empty-icon">📡</div>
+                <h3>Keine Sensoren gefunden</h3>
+                <p class="mt-4">Starte einen Smart Scan um ESP32 Sensoren im stromsparenden Advertising-Modus zu finden</p>
             </div>
         </main>
 
@@ -774,7 +892,7 @@
             </button>
             <button class="tab-item" data-tab="scan">
                 <span class="tab-icon">🔍</span>
-                <span class="tab-label">Scannen</span>
+                <span class="tab-label">Smart Scan</span>
             </button>
             <button class="tab-item" data-tab="settings">
                 <span class="tab-icon">⚙️</span>
@@ -787,14 +905,14 @@
     <div class="modal" id="scanModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 class="modal-title">Geräte scannen</h2>
+                <h2 class="modal-title">Smart Scan</h2>
                 <button class="close-modal" id="closeScanModal">×</button>
             </div>
-            <p>Gefundene ESP32 Sensoren:</p>
+            <p>Suche nach ESP32 Sensoren im stromsparenden Advertising-Modus:</p>
             <div class="device-list" id="deviceList">
                 <div class="empty-state">
                     <div class="empty-icon">🔍</div>
-                    <p>Scanne nach Geräten...</p>
+                    <p>Starte Scan um Geräte zu finden...</p>
                 </div>
             </div>
             <div class="modal-actions" style="display: flex; gap: 12px; margin-top: 20px;">
@@ -813,9 +931,9 @@
             </div>
             
             <div class="settings-section">
-                <h3>Daten-Update</h3>
+                <h3>Smart Hybrid Modus</h3>
                 <div class="setting-item">
-                    <label class="setting-label">Auto-Update Intervall</label>
+                    <label class="setting-label">Advertising-Intervall</label>
                     <select id="updateInterval" class="setting-select">
                         <option value="1000">1 Sekunde</option>
                         <option value="2000" selected>2 Sekunden</option>
@@ -825,9 +943,9 @@
                 </div>
                 
                 <div class="setting-item">
-                    <label class="setting-label">Automatisches Polling</label>
+                    <label class="setting-label">Auto-Verbinden bei Alarm</label>
                     <label class="switch">
-                        <input type="checkbox" id="autoPolling" checked>
+                        <input type="checkbox" id="autoConnectAlarm" checked>
                         <span class="slider"></span>
                     </label>
                 </div>
@@ -837,13 +955,13 @@
                 <h3>Alarme</h3>
                 <div class="setting-item">
                     <label class="setting-label">Temperatur-Alarm</label>
-                    <input type="number" id="tempAlarm" class="setting-input" placeholder="30" min="0" max="50" step="0.5">
+                    <input type="number" id="tempAlarm" class="setting-input" value="30" min="0" max="50" step="0.5">
                     <span class="setting-unit">°C</span>
                 </div>
                 
                 <div class="setting-item">
                     <label class="setting-label">Batterie-Alarm</label>
-                    <input type="number" id="battAlarm" class="setting-input" placeholder="3.3" min="2.5" max="4.2" step="0.1">
+                    <input type="number" id="battAlarm" class="setting-input" value="3.3" min="2.5" max="4.2" step="0.1">
                     <span class="setting-unit">V</span>
                 </div>
             </div>
@@ -865,8 +983,9 @@
         const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
         const CHARACTERISTIC_UUID_TEMP = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
         const CHARACTERISTIC_UUID_BATT = 'beb5483e-36e1-4688-b7f5-ea07361b26a9';
+        const CHARACTERISTIC_UUID_ALERT = 'beb5483e-36e1-4688-b7f5-ea07361b26ac';
 
-        // App State
+        // App State für Smart Hybrid Mode
         const appState = {
             devices: [],
             darkMode: false,
@@ -874,12 +993,173 @@
             currentTab: 'devices',
             settings: {
                 updateInterval: 2000,
-                autoPolling: true,
+                autoConnectAlarm: true,
                 tempAlarm: 30,
                 battAlarm: 3.3
             },
             pollingInterval: null
         };
+
+        // Smart Device Klasse
+        class SmartDevice {
+            constructor(deviceInfo) {
+                this.id = deviceInfo.id;
+                this.name = deviceInfo.name || 'ESP32 Smart Sensor';
+                this.temperature = '--';
+                this.batteryVoltage = '--';
+                this.lastUpdate = null;
+                this.connection = null;
+                this.status = 'advertising'; // 'advertising', 'connected', 'alarm'
+                this.characteristics = null;
+                this.connectionRequested = false;
+                this.lastAdvertisement = null;
+            }
+
+            // Verarbeite Advertising-Daten
+            processAdvertisementData(manufacturerData) {
+                try {
+                    if (manufacturerData && manufacturerData.byteLength >= 10) {
+                        // Extrahiere Temperatur (4 Bytes float)
+                        const tempBytes = new Uint8Array(manufacturerData, 2, 4);
+                        this.temperature = new DataView(tempBytes.buffer).getFloat32(0, true);
+                        
+                        // Extrahiere Batterie (4 Bytes float)  
+                        const battBytes = new Uint8Array(manufacturerData, 6, 4);
+                        this.batteryVoltage = new DataView(battBytes.buffer).getFloat32(0, true);
+                        
+                        this.lastUpdate = new Date();
+                        this.status = 'advertising';
+                        this.lastAdvertisement = Date.now();
+                        
+                        console.log(`Advertising data received: ${this.temperature.toFixed(1)}°C, ${this.batteryVoltage.toFixed(2)}V`);
+                        return true;
+                    }
+                } catch (error) {
+                    console.warn('Error processing advertisement data:', error);
+                }
+                return false;
+            }
+
+            // Prüfe ob Verbindung benötigt wird
+            needsConnection() {
+                // Verbindung bei Alarmbedingungen
+                if (this.batteryVoltage !== '--' && this.batteryVoltage < appState.settings.battAlarm) {
+                    return true;
+                }
+                if (this.temperature !== '--' && this.temperature > appState.settings.tempAlarm) {
+                    return true;
+                }
+                // Oder wenn manuell angefordert
+                return this.connectionRequested;
+            }
+
+            // Setze Verbindungsanforderung
+            requestConnection() {
+                this.connectionRequested = true;
+                this.status = 'alarm';
+                console.log(`Connection requested for device: ${this.name}`);
+            }
+
+            // Verbinde mit Gerät
+            async connect(device) {
+                try {
+                    console.log(`Connecting to device: ${this.name}`);
+                    this.status = 'connected';
+                    
+                    const server = await device.gatt.connect();
+                    this.connection = server;
+                    
+                    const service = await server.getPrimaryService(SERVICE_UUID);
+                    
+                    // Characteristics für Echtzeit-Daten
+                    const tempChar = await service.getCharacteristic(CHARACTERISTIC_UUID_TEMP);
+                    const battChar = await service.getCharacteristic(CHARACTERISTIC_UUID_BATT);
+                    const alertChar = await service.getCharacteristic(CHARACTERISTIC_UUID_ALERT);
+                    
+                    this.characteristics = { tempChar, battChar, alertChar };
+                    
+                    // Initiale Werte lesen
+                    await this.readCurrentValues();
+                    
+                    // Notifications für Live-Updates
+                    await tempChar.startNotifications();
+                    await battChar.startNotifications();
+                    
+                    tempChar.addEventListener('characteristicvaluechanged', 
+                        (event) => this.handleTemperatureUpdate(event));
+                    battChar.addEventListener('characteristicvaluechanged', 
+                        (event) => this.handleBatteryUpdate(event));
+                    
+                    // Disconnect Event
+                    device.addEventListener('gattserverdisconnected', () => {
+                        this.handleDisconnect();
+                    });
+                    
+                    console.log(`Successfully connected to: ${this.name}`);
+                    return true;
+                    
+                } catch (error) {
+                    console.error(`Connection error for ${this.name}:`, error);
+                    this.handleDisconnect();
+                    return false;
+                }
+            }
+
+            // Aktuelle Werte lesen
+            async readCurrentValues() {
+                try {
+                    if (this.characteristics?.tempChar) {
+                        const tempValue = await this.characteristics.tempChar.readValue();
+                        const tempText = new TextDecoder().decode(tempValue);
+                        this.temperature = parseFloat(tempText) || '--';
+                    }
+                    
+                    if (this.characteristics?.battChar) {
+                        const battValue = await this.characteristics.battChar.readValue();
+                        const battText = new TextDecoder().decode(battValue);
+                        this.batteryVoltage = parseFloat(battText) || '--';
+                    }
+                    
+                    this.lastUpdate = new Date();
+                    
+                } catch (error) {
+                    console.error('Error reading values:', error);
+                }
+            }
+
+            handleTemperatureUpdate(event) {
+                const value = event.target.value;
+                const text = new TextDecoder().decode(value);
+                this.temperature = parseFloat(text) || '--';
+                this.lastUpdate = new Date();
+                updateUI();
+            }
+
+            handleBatteryUpdate(event) {
+                const value = event.target.value;
+                const text = new TextDecoder().decode(value);
+                this.batteryVoltage = parseFloat(text) || '--';
+                this.lastUpdate = new Date();
+                updateUI();
+            }
+
+            handleDisconnect() {
+                this.connection = null;
+                this.characteristics = null;
+                this.status = 'advertising';
+                this.connectionRequested = false;
+                console.log(`Disconnected from: ${this.name}`);
+                updateUI();
+            }
+
+            // Trenne Verbindung
+            disconnect() {
+                if (this.connection) {
+                    this.connection.disconnect();
+                }
+                this.handleDisconnect();
+            }
+        }
 
         // DOM Elements
         const welcomeScreen = document.getElementById('welcomeScreen');
@@ -899,7 +1179,7 @@
         const settingsModal = document.getElementById('settingsModal');
         const closeSettingsModal = document.getElementById('closeSettingsModal');
         const updateIntervalSelect = document.getElementById('updateInterval');
-        const autoPollingCheckbox = document.getElementById('autoPolling');
+        const autoConnectAlarmCheckbox = document.getElementById('autoConnectAlarm');
         const tempAlarmInput = document.getElementById('tempAlarm');
         const battAlarmInput = document.getElementById('battAlarm');
         const clearDevicesBtn = document.getElementById('clearDevicesBtn');
@@ -912,18 +1192,18 @@
             setupEventListeners();
             updateUI();
             checkBluetoothAvailability();
-            startPolling();
+            startDeviceMonitoring();
         }
 
         function setupEventListeners() {
             themeToggle.addEventListener('click', toggleTheme);
-            refreshBtn.addEventListener('click', refreshData);
-            scanBtn.addEventListener('click', startScanning);
+            refreshBtn.addEventListener('click', refreshAllDevices);
+            scanBtn.addEventListener('click', startSmartScan);
             closeScanModal.addEventListener('click', closeModal);
             cancelScan.addEventListener('click', closeModal);
-            rescanBtn.addEventListener('click', startScanning);
+            rescanBtn.addEventListener('click', startSmartScan);
             
-            // Tab Navigation - KORRIGIERT
+            // Tab Navigation
             tabItems.forEach(tab => {
                 tab.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -959,13 +1239,12 @@
             // Tab-specific actions
             switch(tabName) {
                 case 'scan':
-                    startScanning();
+                    startSmartScan();
                     break;
                 case 'settings':
                     showSettingsModal();
                     break;
                 case 'devices':
-                    // Zeige die Geräteliste
                     updateUI();
                     break;
             }
@@ -974,7 +1253,7 @@
         function showSettingsModal() {
             // Load current settings into form
             updateIntervalSelect.value = appState.settings.updateInterval;
-            autoPollingCheckbox.checked = appState.settings.autoPolling;
+            autoConnectAlarmCheckbox.checked = appState.settings.autoConnectAlarm;
             tempAlarmInput.value = appState.settings.tempAlarm;
             battAlarmInput.value = appState.settings.battAlarm;
             
@@ -983,53 +1262,17 @@
 
         function saveSettings() {
             appState.settings.updateInterval = parseInt(updateIntervalSelect.value);
-            appState.settings.autoPolling = autoPollingCheckbox.checked;
+            appState.settings.autoConnectAlarm = autoConnectAlarmCheckbox.checked;
             appState.settings.tempAlarm = parseFloat(tempAlarmInput.value) || 30;
             appState.settings.battAlarm = parseFloat(battAlarmInput.value) || 3.3;
-            
-            // Restart polling with new interval
-            stopPolling();
-            if (appState.settings.autoPolling) {
-                startPolling();
-            }
             
             saveToLocalStorage();
             settingsModal.style.display = 'none';
             showToast('Einstellungen gespeichert');
-            
-            // Zurück zur Geräteansicht
             switchTab('devices');
         }
 
-        function startPolling() {
-            if (appState.pollingInterval) {
-                clearInterval(appState.pollingInterval);
-            }
-            
-            if (appState.settings.autoPolling) {
-                appState.pollingInterval = setInterval(() => {
-                    refreshData();
-                }, appState.settings.updateInterval);
-                
-                console.log(`Polling gestartet: ${appState.settings.updateInterval}ms`);
-            }
-        }
-
-        function stopPolling() {
-            if (appState.pollingInterval) {
-                clearInterval(appState.pollingInterval);
-                appState.pollingInterval = null;
-            }
-        }
-
-        function toggleTheme() {
-            appState.darkMode = !appState.darkMode;
-            document.body.classList.toggle('dark-mode', appState.darkMode);
-            themeToggle.textContent = appState.darkMode ? '☀️' : '🌙';
-            saveToLocalStorage();
-        }
-
-        async function startScanning() {
+        async function startSmartScan() {
             if (appState.isScanning) return;
             
             try {
@@ -1037,7 +1280,7 @@
                 updateScanButton(true);
                 
                 scanModal.style.display = 'flex';
-                deviceList.innerHTML = '<div class="empty-state"><div class="loading-spinner"></div><p>Scanne nach ESP32 Geräten...</p></div>';
+                deviceList.innerHTML = '<div class="empty-state"><div class="loading-spinner"></div><p>Smart Scan läuft... Suche nach Advertising-Geräten</p></div>';
                 
                 if (!navigator.bluetooth) {
                     throw new Error('Bluetooth wird in diesem Browser nicht unterstützt. Verwenden Sie Bluefy auf iOS.');
@@ -1048,26 +1291,127 @@
                     throw new Error('Bluetooth ist nicht verfügbar. Stellen Sie sicher, dass Bluetooth aktiviert ist.');
                 }
                 
-                console.log('Starte Bluetooth Scan...');
+                console.log('Starting Smart Hybrid Scan...');
                 
+                // Scanne nach allen BLE Geräten
                 const device = await navigator.bluetooth.requestDevice({
-                    filters: [
-                        { services: [SERVICE_UUID] },
-                        { namePrefix: 'ESP32' }
-                    ],
+                    acceptAllDevices: true,
                     optionalServices: [SERVICE_UUID]
                 });
                 
-                if (device) {
-                    await connectToDevice(device);
+                // Prüfe ob es ein ESP32 Sensor ist
+                if (device.name && device.name.includes('ESP32')) {
+                    await processDiscoveredDevice(device);
+                } else {
+                    // Versuche Manufacturer Data auszulesen
+                    const manufacturerData = await device.getManufacturerData?.();
+                    if (manufacturerData) {
+                        await processDiscoveredDevice(device);
+                    }
                 }
                 
             } catch (error) {
-                console.error('Scan Fehler:', error);
-                showError('Scan Fehler: ' + error.message);
+                console.error('Smart Scan Fehler:', error);
+                if (error.name !== 'NotFoundError') {
+                    showError('Scan Fehler: ' + error.message);
+                }
             } finally {
                 stopScanning();
             }
+        }
+
+        async function processDiscoveredDevice(device) {
+            try {
+                const deviceInfo = {
+                    id: device.id,
+                    name: device.name,
+                    device: device
+                };
+
+                // Prüfe ob Device bereits existiert
+                let existingDevice = appState.devices.find(d => d.id === deviceInfo.id);
+                if (!existingDevice) {
+                    existingDevice = new SmartDevice(deviceInfo);
+                    appState.devices.push(existingDevice);
+                    showToast(`Neuer Sensor gefunden: ${deviceInfo.name}`);
+                }
+
+                // Versuche Manufacturer Data zu lesen
+                try {
+                    const manufacturerData = await device.getManufacturerData?.();
+                    if (manufacturerData) {
+                        existingDevice.processAdvertisementData(manufacturerData);
+                    }
+                } catch (e) {
+                    console.log('No manufacturer data available');
+                }
+
+                // Prüfe ob Verbindung benötigt wird
+                if (appState.settings.autoConnectAlarm && existingDevice.needsConnection()) {
+                    console.log('Alarm condition detected - connecting to device');
+                    await existingDevice.connect(device);
+                    showToast(`Alarm: Verbindung zu ${existingDevice.name} hergestellt`);
+                }
+
+                updateUI();
+                updateDeviceList();
+                saveToLocalStorage();
+                
+            } catch (error) {
+                console.error('Error processing device:', error);
+            }
+        }
+
+        function updateDeviceList() {
+            deviceList.innerHTML = '';
+            
+            if (appState.devices.length === 0) {
+                deviceList.innerHTML = '<div class="empty-state"><p>Keine Geräte gefunden</p></div>';
+                return;
+            }
+            
+            appState.devices.forEach(device => {
+                const deviceItem = document.createElement('div');
+                deviceItem.className = 'device-item';
+                deviceItem.innerHTML = `
+                    <div>
+                        <strong>${device.name}</strong>
+                        <div class="device-rssi">${device.status} • ${device.temperature !== '--' ? device.temperature.toFixed(1) + '°C' : '--'} • ${device.batteryVoltage !== '--' ? device.batteryVoltage.toFixed(2) + 'V' : '--'}</div>
+                    </div>
+                    <button class="btn-small" onclick="requestConnection('${device.id}')">Verbinden</button>
+                `;
+                deviceList.appendChild(deviceItem);
+            });
+        }
+
+        async function requestConnection(deviceId) {
+            const device = appState.devices.find(d => d.id === deviceId);
+            if (device && device.device) {
+                device.requestConnection();
+                const connected = await device.connect(device.device);
+                if (connected) {
+                    showToast(`Verbunden mit ${device.name}`);
+                }
+                updateUI();
+                closeModal();
+            }
+        }
+
+        function startDeviceMonitoring() {
+            // Prüfe regelmäßig auf veraltete Advertising-Daten
+            setInterval(() => {
+                const now = Date.now();
+                appState.devices.forEach(device => {
+                    if (device.status === 'advertising' && device.lastAdvertisement) {
+                        // Wenn länger als 10 Sekunden keine Advertising-Daten
+                        if (now - device.lastAdvertisement > 10000) {
+                            device.temperature = '--';
+                            device.batteryVoltage = '--';
+                            updateUI();
+                        }
+                    }
+                });
+            }, 5000);
         }
 
         function stopScanning() {
@@ -1076,229 +1420,87 @@
         }
 
         function updateScanButton(scanning) {
-            const scanButton = document.querySelector('.btn-scan');
             if (scanning) {
-                scanButton.classList.add('scanning');
-                scanButton.innerHTML = '<span class="loading-spinner"></span> Scanne...';
+                scanBtn.classList.add('scanning');
+                scanBtn.innerHTML = '<span class="loading-spinner"></span> Scanne...';
             } else {
-                scanButton.classList.remove('scanning');
-                scanButton.innerHTML = '<span>ESP32 Scannen</span>';
+                scanBtn.classList.remove('scanning');
+                scanBtn.innerHTML = '<span>Smart Scan Starten</span>';
             }
         }
 
-        async function connectToDevice(device) {
-            try {
-                console.log('Verbinde mit Gerät:', device.name);
-                
-                const newDevice = {
-                    id: device.id,
-                    name: device.name || 'ESP32 Sensor',
-                    connected: false,
-                    temperature: '--',
-                    batteryVoltage: '--',
-                    lastUpdate: null,
-                    gattServer: null,
-                    characteristics: null
-                };
-                
-                const existingIndex = appState.devices.findIndex(d => d.id === device.id);
-                if (existingIndex >= 0) {
-                    appState.devices[existingIndex] = newDevice;
-                } else {
-                    appState.devices.push(newDevice);
-                }
-                
-                updateUI();
-                
-                const server = await device.gatt.connect();
-                newDevice.gattServer = server;
-                newDevice.connected = true;
-                
-                const service = await server.getPrimaryService(SERVICE_UUID);
-                
-                try {
-                    const tempChar = await service.getCharacteristic(CHARACTERISTIC_UUID_TEMP);
-                    const battChar = await service.getCharacteristic(CHARACTERISTIC_UUID_BATT);
-                    
-                    newDevice.characteristics = { tempChar, battChar };
-                    await readDeviceValues(newDevice);
-                    
-                    // Starte Notifications für automatische Updates
-                    await tempChar.startNotifications();
-                    await battChar.startNotifications();
-                    
-                    tempChar.addEventListener('characteristicvaluechanged', 
-                        (event) => handleTemperatureUpdate(newDevice, event));
-                    battChar.addEventListener('characteristicvaluechanged', 
-                        (event) => handleBatteryUpdate(newDevice, event));
-                        
-                } catch (charError) {
-                    console.warn('Konnte nicht alle Characteristics lesen:', charError);
-                }
-                
-                device.addEventListener('gattserverdisconnected', () => {
-                    handleDeviceDisconnected(newDevice);
-                });
-                
-                console.log('Erfolgreich verbunden mit:', device.name);
-                closeModal();
-                updateUI();
-                saveToLocalStorage();
-                
-                // Zurück zur Geräteansicht
-                switchTab('devices');
-                
-            } catch (error) {
-                console.error('Verbindungsfehler:', error);
-                showError('Verbindungsfehler: ' + error.message);
-                handleDeviceDisconnected(newDevice);
-            }
-        }
-
-        async function readDeviceValues(device) {
-            try {
-                if (device.characteristics?.tempChar) {
-                    const tempValue = await device.characteristics.tempChar.readValue();
-                    const tempText = new TextDecoder().decode(tempValue);
-                    device.temperature = parseFloat(tempText) || '--';
-                }
-                
-                if (device.characteristics?.battChar) {
-                    const battValue = await device.characteristics.battChar.readValue();
-                    const battText = new TextDecoder().decode(battValue);
-                    device.batteryVoltage = parseFloat(battText) || '--';
-                }
-                
-                device.lastUpdate = new Date();
-                updateUI();
-                
-                // Check alarms
-                checkAlarms(device);
-                
-            } catch (error) {
-                console.error('Fehler beim Lesen der Werte:', error);
-            }
-        }
-
-        function refreshData() {
+        function refreshAllDevices() {
             appState.devices.forEach(device => {
-                if (device.connected && device.characteristics) {
-                    readDeviceValues(device);
+                if (device.status === 'connected' && device.characteristics) {
+                    device.readCurrentValues();
                 }
             });
-        }
-
-        function handleTemperatureUpdate(device, event) {
-            const value = event.target.value;
-            const text = new TextDecoder().decode(value);
-            device.temperature = parseFloat(text) || '--';
-            device.lastUpdate = new Date();
-            updateUI();
-            checkAlarms(device);
-        }
-
-        function handleBatteryUpdate(device, event) {
-            const value = event.target.value;
-            const text = new TextDecoder().decode(value);
-            device.batteryVoltage = parseFloat(text) || '--';
-            device.lastUpdate = new Date();
-            updateUI();
-            checkAlarms(device);
-        }
-
-        function checkAlarms(device) {
-            // Check temperature alarm
-            if (device.temperature !== '--' && device.temperature > appState.settings.tempAlarm) {
-                showToast(`⚠️ Temperaturalarm: ${device.temperature}°C bei ${device.name}`);
-            }
-            
-            // Check battery alarm
-            if (device.batteryVoltage !== '--' && device.batteryVoltage < appState.settings.battAlarm) {
-                showToast(`⚠️ Batteriealarm: ${device.batteryVoltage}V bei ${device.name}`);
-            }
-        }
-
-        function handleDeviceDisconnected(device) {
-            device.connected = false;
-            device.gattServer = null;
-            device.characteristics = null;
-            console.log('Gerät getrennt:', device.name);
-            updateUI();
-            saveToLocalStorage();
-        }
-
-        function clearAllDevices() {
-            // Disconnect all devices first
-            disconnectAllDevices();
-            
-            // Clear from app state
-            appState.devices = [];
-            updateUI();
-            saveToLocalStorage();
-            showToast('Alle Geräte gelöscht');
-        }
-
-        function disconnectAllDevices() {
-            appState.devices.forEach(device => {
-                if (device.connected && device.gattServer) {
-                    try {
-                        device.gattServer.disconnect();
-                    } catch (error) {
-                        console.error('Fehler beim Trennen:', error);
-                    }
-                }
-                device.connected = false;
-                device.gattServer = null;
-                device.characteristics = null;
-            });
-            updateUI();
-            saveToLocalStorage();
-            showToast('Alle Verbindungen getrennt');
+            showToast('Aktualisiere alle Sensoren...');
         }
 
         function createDeviceCard(device) {
-            const isLowBattery = device.batteryVoltage !== '--' && parseFloat(device.batteryVoltage) < 3.3;
-            const batteryClass = isLowBattery ? 'battery-warning' : '';
-            const statusClass = device.connected ? '' : 'disconnected';
-            const cardClass = device.connected ? 'connected' : '';
+            const isLowBattery = device.batteryVoltage !== '--' && device.batteryVoltage < appState.settings.battAlarm;
+            const isHighTemp = device.temperature !== '--' && device.temperature > appState.settings.tempAlarm;
+            const isAlarm = isLowBattery || isHighTemp || device.needsConnection();
+            
+            const cardClass = device.status === 'connected' ? 'connected' : 
+                             device.status === 'alarm' ? 'alarm' : 'advertising';
+            
+            const statusClass = device.status;
+            const statusText = device.status === 'connected' ? 'Verbunden' : 
+                              device.status === 'alarm' ? 'Alarm ⚠️' : 'Advertising';
+            
+            const connectionMode = device.status === 'connected' ? 'Echtzeit' : 'Battery-Saver';
             
             const lastUpdate = device.lastUpdate ? 
                 `Aktualisiert: ${device.lastUpdate.toLocaleTimeString()}` : 
-                'Noch keine Daten';
+                'Warte auf Daten...';
             
             return `
                 <div class="device-card ${cardClass}">
                     <div class="device-header">
                         <div class="device-name">
-                            <span class="device-icon">🌡️</span>
+                            <span class="device-icon">${device.status === 'connected' ? '🔗' : '📡'}</span>
                             ${device.name}
                         </div>
                         <div class="device-status ${statusClass}">
-                            ${device.connected ? 'Verbunden' : 'Getrennt'}
+                            ${statusText}
                         </div>
                     </div>
                     <div class="sensor-data">
-                        <div class="sensor-item">
-                            <div class="sensor-value">${device.temperature}<span class="sensor-unit">°C</span></div>
+                        <div class="sensor-item ${isHighTemp ? 'battery-warning' : ''}">
+                            <div class="sensor-value">${device.temperature !== '--' ? device.temperature.toFixed(1) : '--'}<span class="sensor-unit">°C</span></div>
                             <div class="sensor-label">Temperatur</div>
                         </div>
-                        <div class="sensor-item ${batteryClass}">
-                            <div class="sensor-value">${device.batteryVoltage}<span class="sensor-unit">V</span></div>
+                        <div class="sensor-item ${isLowBattery ? 'battery-warning' : ''}">
+                            <div class="sensor-value">${device.batteryVoltage !== '--' ? device.batteryVoltage.toFixed(2) : '--'}<span class="sensor-unit">V</span></div>
                             <div class="sensor-label">Akkustand</div>
                         </div>
                     </div>
-                    <div class="last-update">${lastUpdate}</div>
+                    <div class="device-actions">
+                        <button class="btn-small" onclick="requestConnection('${device.id}')">
+                            ${device.status === 'connected' ? 'Trennen' : 'Verbinden'}
+                        </button>
+                        <span class="connection-mode">
+                            ${connectionMode}
+                        </span>
+                    </div>
+                    <div class="last-update">
+                        ${lastUpdate}
+                    </div>
                 </div>
             `;
         }
 
         function updateUI() {
             const hasDevices = appState.devices.length > 0;
-            const hasConnectedDevices = appState.devices.some(device => device.connected);
+            const hasActiveDevices = appState.devices.some(device => 
+                device.temperature !== '--' || device.batteryVoltage !== '--'
+            );
             
             welcomeScreen.classList.toggle('hidden', hasDevices);
             devicesContainer.classList.toggle('hidden', !hasDevices);
-            emptyState.classList.toggle('hidden', hasConnectedDevices);
+            emptyState.classList.toggle('hidden', hasActiveDevices);
             
             if (hasDevices) {
                 devicesContainer.innerHTML = '';
@@ -1311,8 +1513,6 @@
         function closeModal() {
             scanModal.style.display = 'none';
             stopScanning();
-            
-            // Zurück zur Geräteansicht
             switchTab('devices');
         }
 
@@ -1321,7 +1521,6 @@
         }
 
         function showToast(message) {
-            // Simple toast notification
             const toast = document.createElement('div');
             toast.textContent = message;
             toast.className = 'toast';
@@ -1334,12 +1533,34 @@
             }, 3000);
         }
 
+        function clearAllDevices() {
+            disconnectAllDevices();
+            appState.devices = [];
+            updateUI();
+            saveToLocalStorage();
+            showToast('Alle Geräte gelöscht');
+        }
+
+        function disconnectAllDevices() {
+            appState.devices.forEach(device => {
+                device.disconnect();
+            });
+            showToast('Alle Verbindungen getrennt');
+        }
+
         function checkBluetoothAvailability() {
             if (!navigator.bluetooth) {
                 scanBtn.disabled = true;
                 scanBtn.innerHTML = '<span>Bluetooth nicht unterstützt</span>';
                 scanBtn.title = 'Verwenden Sie Bluefy auf iOS für Bluetooth';
             }
+        }
+
+        function toggleTheme() {
+            appState.darkMode = !appState.darkMode;
+            document.body.classList.toggle('dark-mode', appState.darkMode);
+            themeToggle.textContent = appState.darkMode ? '☀️' : '🌙';
+            saveToLocalStorage();
         }
 
         function saveToLocalStorage() {
@@ -1351,14 +1572,14 @@
                 darkMode: appState.darkMode,
                 settings: appState.settings
             };
-            localStorage.setItem('sensorMonitor', JSON.stringify(saveData));
+            localStorage.setItem('smartSensorMonitor', JSON.stringify(saveData));
         }
 
         function loadFromLocalStorage() {
-            const saved = localStorage.getItem('sensorMonitor');
+            const saved = localStorage.getItem('smartSensorMonitor');
             if (saved) {
                 const data = JSON.parse(saved);
-                appState.devices = data.devices || [];
+                appState.devices = (data.devices || []).map(deviceInfo => new SmartDevice(deviceInfo));
                 appState.darkMode = data.darkMode || false;
                 appState.settings = data.settings || appState.settings;
                 
