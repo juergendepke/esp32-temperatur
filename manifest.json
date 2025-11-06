@@ -1,0 +1,13 @@
+{
+  "name": "Smart Bread Baker",
+  "short_name": "BreadBaker",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f8f9fb",
+  "theme_color": "#ffffff",
+  "description": "Intelligente Brotback-App mit Temperaturkurve",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
