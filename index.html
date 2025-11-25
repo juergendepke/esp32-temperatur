@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BrotThermometer</title>
-    <link rel="manifest" href="manifest.json">
     <style>
         * {
             box-sizing: border-box;
@@ -205,6 +204,11 @@
         let temperatureCharacteristic = null;
         let isConnected = false;
 
+        // BLE UUIDs - müssen mit ESP32 übereinstimmen
+        const SERVICE_UUID = '12341000-1234-1234-1234-123456789abc';
+        const TEMPERATURE_UUID = '12341001-1234-1234-1234-123456789abc';
+        const SETTINGS_UUID = '12341003-1234-1234-1234-123456789abc';
+
         // UI Elements
         const connectButton = document.getElementById('connectButton');
         const startButton = document.getElementById('startButton');
@@ -243,12 +247,12 @@
                 connectButton.textContent = 'Suche...';
                 
                 if (!navigator.bluetooth) {
-                    throw new Error('Web Bluetooth wird nicht unterstützt!');
+                    throw new Error('Web Bluetooth wird nicht unterstützt! Verwende Chrome/Edge.');
                 }
 
                 device = await navigator.bluetooth.requestDevice({
                     filters: [{ name: "BrotThermometer-TTGO" }],
-                    optionalServices: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b']
+                    optionalServices: [SERVICE_UUID]
                 });
                 
                 log(`Gerät gefunden: ${device.name}`);
@@ -257,11 +261,15 @@
                 server = await device.gatt.connect();
                 log('Verbunden mit GATT Server');
                 
-                service = await server.getPrimaryService('4fafc201-1fb5-459e-8fcc-c5c9c331914b');
+                service = await server.getPrimaryService(SERVICE_UUID);
                 log('Service gefunden');
                 
                 // Setup Temperature Characteristic
-                temperatureCharacteristic = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
+                log('Hole Temperature Characteristic...');
+                temperatureCharacteristic = await service.getCharacteristic(TEMPERATURE_UUID);
+                log('Temperature Characteristic gefunden');
+                
+                // Aktiviere Notifications
                 await temperatureCharacteristic.startNotifications();
                 temperatureCharacteristic.addEventListener('characteristicvaluechanged', handleTemperatureData);
                 log('Temperatur-Notifications aktiviert');
@@ -273,7 +281,11 @@
                 connectButton.textContent = '✅ Verbunden';
                 startButton.disabled = false;
                 
-                log('Verbindung erfolgreich!');
+                log('Verbindung erfolgreich! Warte auf Temperaturdaten...');
+                
+                // Lese ersten Wert
+                const initialValue = await temperatureCharacteristic.readValue();
+                handleTemperatureData({ target: { value: initialValue } });
                 
                 // Handle disconnection
                 device.addEventListener('gattserverdisconnected', onDisconnected);
@@ -310,47 +322,51 @@
         }
 
         function handleTemperatureData(event) {
-            const value = event.target.value;
-            const text = new TextDecoder().decode(value);
-            
-            log(`Daten empfangen: ${text}`);
-            
-            const parts = text.split(',');
-            if (parts.length >= 5) {
-                const [temp, isBaking, isComplete, breadIndex, targetTemp] = parts;
+            try {
+                const value = event.target.value;
+                const text = new TextDecoder().decode(value);
                 
-                // Update Temperature Display
-                temperatureElement.textContent = `${temp}°C`;
+                log(`Daten empfangen: ${text}`);
                 
-                // Update Progress and Status
-                if (isComplete === '1') {
-                    statusElement.textContent = '🎉 BROT FERTIG!';
-                    progressFill.style.width = '100%';
-                    progressFill.style.background = 'linear-gradient(90deg, #4CAF50, #8BC34A)';
-                    stopButton.disabled = true;
-                    startButton.disabled = false;
-                } else if (isBaking === '1') {
-                    const progress = (parseFloat(temp) / parseFloat(targetTemp)) * 100;
-                    const progressPercent = Math.min(progress, 100);
-                    progressFill.style.width = `${progressPercent}%`;
+                const parts = text.split(',');
+                if (parts.length >= 5) {
+                    const [temp, isBaking, isComplete, breadIndex, targetTemp] = parts;
                     
-                    if (progressPercent < 50) {
-                        progressFill.style.background = 'linear-gradient(90deg, #FF9800, #FFC107)';
-                    } else if (progressPercent < 80) {
-                        progressFill.style.background = 'linear-gradient(90deg, #FFC107, #CDDC39)';
-                    } else {
+                    // Update Temperature Display
+                    temperatureElement.textContent = `${temp}°C`;
+                    
+                    // Update Progress and Status
+                    if (isComplete === '1') {
+                        statusElement.textContent = '🎉 BROT FERTIG!';
+                        progressFill.style.width = '100%';
                         progressFill.style.background = 'linear-gradient(90deg, #4CAF50, #8BC34A)';
+                        stopButton.disabled = true;
+                        startButton.disabled = false;
+                    } else if (isBaking === '1') {
+                        const progress = (parseFloat(temp) / parseFloat(targetTemp)) * 100;
+                        const progressPercent = Math.min(progress, 100);
+                        progressFill.style.width = `${progressPercent}%`;
+                        
+                        if (progressPercent < 50) {
+                            progressFill.style.background = 'linear-gradient(90deg, #FF9800, #FFC107)';
+                        } else if (progressPercent < 80) {
+                            progressFill.style.background = 'linear-gradient(90deg, #FFC107, #CDDC39)';
+                        } else {
+                            progressFill.style.background = 'linear-gradient(90deg, #4CAF50, #8BC34A)';
+                        }
+                        
+                        statusElement.textContent = `Backend... ${progressPercent.toFixed(1)}%`;
+                        stopButton.disabled = false;
+                        startButton.disabled = true;
+                    } else {
+                        statusElement.textContent = 'Bereit';
+                        progressFill.style.width = '0%';
+                        stopButton.disabled = true;
+                        startButton.disabled = false;
                     }
-                    
-                    statusElement.textContent = `Backend... ${progressPercent.toFixed(1)}%`;
-                    stopButton.disabled = false;
-                    startButton.disabled = true;
-                } else {
-                    statusElement.textContent = 'Bereit';
-                    progressFill.style.width = '0%';
-                    stopButton.disabled = true;
-                    startButton.disabled = false;
                 }
+            } catch (error) {
+                log(`Fehler beim Verarbeiten der Daten: ${error.message}`);
             }
         }
 
@@ -382,7 +398,7 @@
             }
             
             try {
-                const characteristic = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a0');
+                const characteristic = await service.getCharacteristic(SETTINGS_UUID);
                 await characteristic.writeValue(new TextEncoder().encode(command));
                 log(`Befehl gesendet: ${command}`);
             } catch (error) {
@@ -395,6 +411,7 @@
         stopButton.disabled = true;
         
         log('BrotThermometer PWA gestartet');
+        log('Stelle sicher dass der ESP32 mit dem neuen Code geflasht wurde!');
     </script>
 </body>
 </html>
