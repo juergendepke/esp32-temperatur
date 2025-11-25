@@ -1,176 +1,400 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#ffffff" />
-  <link rel="manifest" href="manifest.json" />
-  <title>🍞 Smart Bread Baker</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "San Francisco", "Segoe UI", Roboto, sans-serif;
-      background: #f8f9fb;
-      color: #222;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin: 0;
-      padding: 1rem;
-    }
-    .card {
-      background: white;
-      border-radius: 1.5rem;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-      padding: 1.5rem;
-      max-width: 420px;
-      width: 100%;
-    }
-    input, button {
-      width: 100%;
-      padding: 0.7rem;
-      margin-top: 0.4rem;
-      border-radius: 0.8rem;
-      border: 1px solid #ddd;
-      font-size: 1rem;
-    }
-    button {
-      background: black;
-      color: white;
-      border: none;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    button:hover { background: #333; }
-    h1 { text-align: center; font-weight: 600; }
-    canvas { width: 100%; height: 250px; margin-top: 1rem; }
-    .tip { text-align: center; font-style: italic; color: #666; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BrotThermometer</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        
+        .status-card {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .temperature {
+            font-size: 4em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .status {
+            font-size: 1.2em;
+            margin: 10px 0;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            height: 20px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            border-radius: 10px;
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+        
+        .controls {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        select, button {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .button-group button {
+            flex: 1;
+        }
+        
+        .stop-button {
+            background: #f44336;
+        }
+        
+        .stop-button:hover {
+            background: #da190b;
+        }
+        
+        .connection-status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        
+        .connected {
+            background: rgba(76, 175, 80, 0.3);
+            border: 2px solid #4CAF50;
+        }
+        
+        .disconnected {
+            background: rgba(244, 67, 54, 0.3);
+            border: 2px solid #f44336;
+        }
+        
+        .log {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
 </head>
 <body>
-  <div class="card">
-    <h1>🍞 Smart Bread Baker</h1>
-    <div id="form">
-      <label>Rezeptname</label>
-      <input id="rname" placeholder="z. B. Bauernbrot" />
-      <label>Mehlart</label>
-      <input id="mehl" placeholder="Weizen, Roggen …" />
-      <label>Hydration (%)</label>
-      <input id="hydration" placeholder="z. B. 70" />
-      <label>Gewicht (g)</label>
-      <input id="gewicht" placeholder="z. B. 800" />
-      <button id="startBtn">Backvorgang starten</button>
+    <div class="container">
+        <h1>🥖 Brot Thermometer</h1>
+        
+        <div id="connectionStatus" class="connection-status disconnected">
+            Nicht verbunden
+        </div>
+        
+        <div class="status-card">
+            <div class="temperature" id="temperature">--.-°C</div>
+            <div class="status" id="status">Bereit</div>
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button id="connectButton">🔗 Mit Thermometer verbinden</button>
+            
+            <select id="breadSelect">
+                <option value="0">Weizenbrot (96°C)</option>
+                <option value="1">Roggenbrot (98°C)</option>
+                <option value="2">Vollkornbrot (97°C)</option>
+                <option value="3">Ciabatta (94°C)</option>
+                <option value="4">Baguette (95°C)</option>
+            </select>
+            
+            <div class="button-group">
+                <button id="startButton">🔥 Backen starten</button>
+                <button id="stopButton" class="stop-button" disabled>⏹️ Stopp</button>
+            </div>
+        </div>
+        
+        <div class="log" id="log">
+            <div class="log-entry">App gestartet - Bereit für Verbindung</div>
+        </div>
     </div>
 
-    <div id="sim" style="display:none;">
-      <div style="text-align:center;font-size:1.2rem;">
-        ⏱ Zeit: <span id="zeit">0</span> s
-        <div>⏳ Restzeit: <span id="restzeit">–</span></div>
-      </div>
-      <div style="text-align:center;font-size:2rem;font-weight:600;margin-top:0.5rem;">
-        🌡 <span id="temp">25.0</span> °C
-      </div>
-      <div class="tip" id="tip">Teig ruht …</div>
-      <canvas id="chart"></canvas>
-      <button id="stopBtn">Beenden & CSV speichern</button>
-    </div>
-  </div>
+    <script>
+        let device = null;
+        let server = null;
+        let service = null;
+        let temperatureCharacteristic = null;
+        let isConnected = false;
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script>
-    const startBtn = document.getElementById("startBtn");
-    const stopBtn = document.getElementById("stopBtn");
-    const simDiv = document.getElementById("sim");
-    const formDiv = document.getElementById("form");
-    const tempEl = document.getElementById("temp");
-    const timeEl = document.getElementById("zeit");
-    const restEl = document.getElementById("restzeit");
-    const tipEl = document.getElementById("tip");
+        // UI Elements
+        const connectButton = document.getElementById('connectButton');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const temperatureElement = document.getElementById('temperature');
+        const statusElement = document.getElementById('status');
+        const progressFill = document.getElementById('progressFill');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const logElement = document.getElementById('log');
+        const breadSelect = document.getElementById('breadSelect');
 
-    let time = 0, temp = 25, running = false, interval;
-    const data = [];
+        // Event Listeners
+        connectButton.addEventListener('click', connectBLE);
+        startButton.addEventListener('click', startBaking);
+        stopButton.addEventListener('click', stopBaking);
 
-    const ctx = document.getElementById("chart").getContext("2d");
-    const chart = new Chart(ctx, {
-      type: "line",
-      data: { labels: [], datasets: [{
-        label: "Temperatur (°C)",
-        data: [],
-        borderColor: "#000",
-        borderWidth: 2,
-        tension: 0.3,
-        pointRadius: 0
-      }]},
-      options: {
-        animation: false,
-        scales: {
-          y: { min: 20, max: 120 },
-          x: { title: { display: true, text: "Zeit (s)" } }
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.textContent = `${timestamp}: ${message}`;
+            logElement.prepend(logEntry);
+            
+            // Limit log entries
+            if (logElement.children.length > 20) {
+                logElement.removeChild(logElement.lastChild);
+            }
+            
+            console.log(message);
         }
-      }
-    });
 
-    startBtn.onclick = () => {
-      running = true;
-      formDiv.style.display = "none";
-      simDiv.style.display = "block";
-      time = 0; temp = 25;
-      data.length = 0;
-      interval = setInterval(simulate, 1000);
-    };
+        async function connectBLE() {
+            try {
+                log('Suche BLE Gerät...');
+                connectButton.disabled = true;
+                connectButton.textContent = 'Suche...';
+                
+                if (!navigator.bluetooth) {
+                    throw new Error('Web Bluetooth wird nicht unterstützt!');
+                }
 
-    stopBtn.onclick = () => {
-      running = false;
-      clearInterval(interval);
-      exportCSV();
-      formDiv.style.display = "block";
-      simDiv.style.display = "none";
-    };
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: "BrotThermometer-TTGO" }],
+                    optionalServices: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b']
+                });
+                
+                log(`Gerät gefunden: ${device.name}`);
+                log('Stelle Verbindung her...');
+                
+                server = await device.gatt.connect();
+                log('Verbunden mit GATT Server');
+                
+                service = await server.getPrimaryService('4fafc201-1fb5-459e-8fcc-c5c9c331914b');
+                log('Service gefunden');
+                
+                // Setup Temperature Characteristic
+                temperatureCharacteristic = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
+                await temperatureCharacteristic.startNotifications();
+                temperatureCharacteristic.addEventListener('characteristicvaluechanged', handleTemperatureData);
+                log('Temperatur-Notifications aktiviert');
+                
+                // Update UI
+                isConnected = true;
+                connectionStatus.textContent = 'Verbunden mit BrotThermometer';
+                connectionStatus.className = 'connection-status connected';
+                connectButton.textContent = '✅ Verbunden';
+                startButton.disabled = false;
+                
+                log('Verbindung erfolgreich!');
+                
+                // Handle disconnection
+                device.addEventListener('gattserverdisconnected', onDisconnected);
+                
+            } catch (error) {
+                log(`FEHLER: ${error.message}`);
+                console.error('BLE Fehler:', error);
+                resetConnection();
+            }
+        }
 
-    function simulate() {
-      time++;
-      if (temp < 230) temp += 0.8;
-      else if (temp < 245) temp += 0.2;
-      tempEl.textContent = temp.toFixed(1);
-      timeEl.textContent = time;
+        function onDisconnected() {
+            log('Verbindung verloren');
+            resetConnection();
+        }
 
-      const rate = time > 10 ? (temp - 25) / (time / 60) : 0;
-      const remaining = rate > 0 ? Math.max(0, (95 - temp) / (rate / 60)).toFixed(1) : "–";
-      restEl.textContent = remaining;
+        function resetConnection() {
+            isConnected = false;
+            device = null;
+            server = null;
+            service = null;
+            temperatureCharacteristic = null;
+            
+            connectionStatus.textContent = 'Nicht verbunden';
+            connectionStatus.className = 'connection-status disconnected';
+            connectButton.textContent = '🔗 Mit Thermometer verbinden';
+            connectButton.disabled = false;
+            startButton.disabled = true;
+            stopButton.disabled = true;
+            
+            temperatureElement.textContent = '--.-°C';
+            statusElement.textContent = 'Bereit';
+            progressFill.style.width = '0%';
+        }
 
-      if (temp < 60) tipEl.textContent = "Teig erwärmt sich – Gärreste verdampfen …";
-      else if (temp < 95) tipEl.textContent = "Brot backt – Kruste bildet sich …";
-      else if (temp < 100) tipEl.textContent = "Kerntemperatur erreicht – Brot ist fertig !";
-      else tipEl.textContent = "Backvorgang abgeschlossen.";
+        function handleTemperatureData(event) {
+            const value = event.target.value;
+            const text = new TextDecoder().decode(value);
+            
+            log(`Daten empfangen: ${text}`);
+            
+            const parts = text.split(',');
+            if (parts.length >= 5) {
+                const [temp, isBaking, isComplete, breadIndex, targetTemp] = parts;
+                
+                // Update Temperature Display
+                temperatureElement.textContent = `${temp}°C`;
+                
+                // Update Progress and Status
+                if (isComplete === '1') {
+                    statusElement.textContent = '🎉 BROT FERTIG!';
+                    progressFill.style.width = '100%';
+                    progressFill.style.background = 'linear-gradient(90deg, #4CAF50, #8BC34A)';
+                    stopButton.disabled = true;
+                    startButton.disabled = false;
+                } else if (isBaking === '1') {
+                    const progress = (parseFloat(temp) / parseFloat(targetTemp)) * 100;
+                    const progressPercent = Math.min(progress, 100);
+                    progressFill.style.width = `${progressPercent}%`;
+                    
+                    if (progressPercent < 50) {
+                        progressFill.style.background = 'linear-gradient(90deg, #FF9800, #FFC107)';
+                    } else if (progressPercent < 80) {
+                        progressFill.style.background = 'linear-gradient(90deg, #FFC107, #CDDC39)';
+                    } else {
+                        progressFill.style.background = 'linear-gradient(90deg, #4CAF50, #8BC34A)';
+                    }
+                    
+                    statusElement.textContent = `Backend... ${progressPercent.toFixed(1)}%`;
+                    stopButton.disabled = false;
+                    startButton.disabled = true;
+                } else {
+                    statusElement.textContent = 'Bereit';
+                    progressFill.style.width = '0%';
+                    stopButton.disabled = true;
+                    startButton.disabled = false;
+                }
+            }
+        }
 
-      data.push({ t: time, temp });
-      chart.data.labels.push(time);
-      chart.data.datasets[0].data.push(temp);
-      chart.update();
-    }
+        async function startBaking() {
+            if (!isConnected) {
+                log('Nicht verbunden - kann nicht starten');
+                return;
+            }
+            
+            const breadIndex = breadSelect.value;
+            await sendCommand(`START:${breadIndex}`);
+            log(`Backen gestartet: Brot ${breadIndex}`);
+        }
 
-    function exportCSV() {
-      const r = {
-        name: document.getElementById("rname").value,
-        mehl: document.getElementById("mehl").value,
-        hydration: document.getElementById("hydration").value,
-        gewicht: document.getElementById("gewicht").value,
-      };
-      let csv = "Zeit (s),Temperatur (°C),Rezept,Mehl,Hydration,Gewicht\n";
-      data.forEach(d => {
-        csv += `${d.t},${d.temp.toFixed(2)},${r.name},${r.mehl},${r.hydration},${r.gewicht}\n`;
-      });
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${r.name || "brot"}-daten.csv`;
-      a.click();
-    }
+        async function stopBaking() {
+            if (!isConnected) {
+                log('Nicht verbunden - kann nicht stoppen');
+                return;
+            }
+            
+            await sendCommand('STOP');
+            log('Backen gestoppt');
+        }
 
-    // --- PWA Service Worker registrieren ---
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js');
-    }
-  </script>
+        async function sendCommand(command) {
+            if (!service) {
+                log('FEHLER: Nicht verbunden');
+                return;
+            }
+            
+            try {
+                const characteristic = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a0');
+                await characteristic.writeValue(new TextEncoder().encode(command));
+                log(`Befehl gesendet: ${command}`);
+            } catch (error) {
+                log(`FEHLER beim Senden: ${error.message}`);
+            }
+        }
+
+        // Initial UI State
+        startButton.disabled = true;
+        stopButton.disabled = true;
+        
+        log('BrotThermometer PWA gestartet');
+    </script>
 </body>
 </html>
