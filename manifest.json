@@ -1,13 +1,22 @@
 {
-  "name": "Smart Bread Baker",
-  "short_name": "BreadBaker",
-  "start_url": ".",
+  "name": "BrotThermometer",
+  "short_name": "BrotThermo",
+  "description": "Brot Backthermometer mit BLE Verbindung",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#f8f9fb",
-  "theme_color": "#ffffff",
-  "description": "Intelligente Brotback-App mit Temperaturkurve",
+  "background_color": "#667eea",
+  "theme_color": "#764ba2",
+  "orientation": "portrait",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }
