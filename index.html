@@ -1,417 +1,2894 @@
+
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BrotThermometer</title>
+    <title>Blutdruck Tracker Pro</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
+        :root {
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --accent: #e74c3c;
+            --success: #27ae60;
+            --warning: #f39c12;
+            --danger: #c0392b;
+            --light: #ecf0f1;
+            --dark: #2c3e50;
+            --gray: #95a5a6;
+            --light-blue: #e8f4fc;
+            --border-radius: 16px;
+            --shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+            --shadow-hover: 0 15px 35px rgba(0, 0, 0, 0.12);
+            --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            --gradient-primary: linear-gradient(135deg, #3498db, #2c3e50);
+            --gradient-accent: linear-gradient(135deg, #e74c3c, #c0392b);
+            --gradient-success: linear-gradient(135deg, #27ae60, #229954);
         }
         
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        * {
             margin: 0;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        }
+        
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            color: var(--dark);
+            line-height: 1.6;
             min-height: 100vh;
+            padding-bottom: 100px;
+        }
+        
+        /* Header mit modernem Design */
+        header {
+            background: var(--gradient-primary);
+            color: white;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            border-bottom: 4px solid var(--accent);
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logo-icon {
+            background: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow);
+        }
+        
+        .logo-icon i {
+            color: var(--secondary);
+            font-size: 1.8rem;
+        }
+        
+        .logo-text h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 0.2rem;
+        }
+        
+        .logo-text .subtitle {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+        
+        .app-controls {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95rem;
+            letter-spacing: 0.3px;
+        }
+        
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: white;
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .btn-accent {
+            background: var(--gradient-accent);
+            color: white;
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+        }
+        
+        .btn-success {
+            background: var(--gradient-success);
             color: white;
         }
         
+        .btn-light {
+            background: white;
+            color: var(--dark);
+            border: 1px solid #e0e0e0;
+        }
+        
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-hover);
+        }
+        
+        .btn:active {
+            transform: translateY(-1px);
+        }
+        
+        /* Main Container */
         .container {
-            max-width: 400px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 2rem;
         }
         
-        h1 {
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        @media (max-width: 1200px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Card Design */
+        .card {
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 1.8rem;
+            transition: var(--transition);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .card:hover {
+            box-shadow: var(--shadow-hover);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--light);
+        }
+        
+        .card-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .card-title i {
+            color: var(--secondary);
+            background: var(--light-blue);
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Form Design */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 1.8rem;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        label {
+            margin-bottom: 0.6rem;
+            font-weight: 600;
+            color: var(--primary);
+            font-size: 0.95rem;
+        }
+        
+        .form-control {
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: var(--transition);
+            background: white;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: var(--secondary);
+            box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.15);
+        }
+        
+        .blood-pressure-input {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .blood-pressure-input input {
+            width: 110px;
             text-align: center;
-            margin-bottom: 20px;
-            font-size: 24px;
+            font-weight: 600;
+            font-size: 1.1rem;
         }
         
-        .status-card {
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
-            text-align: center;
+        .separator {
+            font-size: 1.8rem;
+            color: var(--gray);
+            font-weight: 300;
         }
         
-        .temperature {
-            font-size: 4em;
-            font-weight: bold;
-            margin: 10px 0;
+        /* Measurement Cards */
+        .measurements-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
         }
         
-        .status {
-            font-size: 1.2em;
-            margin: 10px 0;
-        }
-        
-        .progress-bar {
-            width: 100%;
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 10px;
-            height: 20px;
-            margin: 15px 0;
+        .measurement-card {
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 1.5rem;
+            transition: var(--transition);
+            border-top: 5px solid var(--secondary);
+            position: relative;
             overflow: hidden;
         }
         
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #4CAF50, #8BC34A);
-            border-radius: 10px;
-            width: 0%;
-            transition: width 0.5s ease;
+        .measurement-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-hover);
         }
         
-        .controls {
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
+        .measurement-card.high {
+            border-top-color: var(--accent);
         }
         
-        select, button {
-            width: 100%;
-            padding: 12px;
-            margin: 8px 0;
+        .measurement-card.optimal {
+            border-top-color: var(--success);
+        }
+        
+        .measurement-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .measurement-date {
+            font-weight: 700;
+            color: var(--primary);
+            font-size: 1.1rem;
+        }
+        
+        .measurement-time {
+            color: var(--gray);
+            font-size: 0.9rem;
+            background: var(--light);
+            padding: 4px 10px;
+            border-radius: 20px;
+        }
+        
+        .measurement-values {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        
+        .value-item {
+            padding: 1rem;
+            border-radius: 12px;
+            background: var(--light-blue);
+        }
+        
+        .value-label {
+            font-size: 0.85rem;
+            color: var(--gray);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+        
+        .value {
+            font-size: 1.8rem;
+            font-weight: 800;
+        }
+        
+        .systolic { color: var(--accent); }
+        .diastolic { color: var(--secondary); }
+        .pulse { color: var(--success); }
+        
+        .measurement-status {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+        
+        .status-optimal { background: rgba(39, 174, 96, 0.1); color: var(--success); }
+        .status-normal { background: rgba(52, 152, 219, 0.1); color: var(--secondary); }
+        .status-elevated { background: rgba(243, 156, 18, 0.1); color: var(--warning); }
+        .status-hypertension1 { background: rgba(230, 126, 34, 0.1); color: #e67e22; }
+        .status-hypertension2 { background: rgba(231, 76, 60, 0.1); color: var(--accent); }
+        .status-crisis { background: rgba(192, 57, 43, 0.1); color: var(--danger); }
+        
+        .delete-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(231, 76, 60, 0.1);
             border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            background: rgba(255, 255, 255, 0.9);
-        }
-        
-        button {
-            background: #4CAF50;
-            color: white;
-            font-weight: bold;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            color: var(--accent);
             cursor: pointer;
-            transition: background 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
         }
         
-        button:hover {
-            background: #45a049;
+        .delete-btn:hover {
+            background: var(--accent);
+            color: white;
+            transform: scale(1.1);
         }
         
-        button:disabled {
-            background: #cccccc;
-            cursor: not-allowed;
+        /* Charts */
+        .chart-container {
+            height: 320px;
+            margin-top: 1.5rem;
+            position: relative;
         }
         
-        .button-group {
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-hover);
+        }
+        
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin: 0.5rem 0;
+        }
+        
+        .stat-label {
+            color: var(--gray);
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid var(--light);
+            margin-bottom: 2rem;
+            overflow-x: auto;
+        }
+        
+        .tab {
+            padding: 1rem 2rem;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--gray);
+            transition: var(--transition);
+            border-bottom: 3px solid transparent;
+            white-space: nowrap;
+        }
+        
+        .tab.active {
+            color: var(--secondary);
+            border-bottom-color: var(--secondary);
+        }
+        
+        .tab:hover:not(.active) {
+            color: var(--primary);
+        }
+        
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Footer */
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+            z-index: 100;
+        }
+        
+        .footer-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+        
+        .version {
+            background: var(--light-blue);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            color: var(--secondary);
+        }
+        
+        .footer-nav {
             display: flex;
             gap: 10px;
         }
         
-        .button-group button {
-            flex: 1;
+        /* Print Styles */
+        @media print {
+            header, .footer, .btn, .delete-btn, .tabs, .no-print {
+                display: none !important;
+            }
+            
+            body {
+                background: white !important;
+                padding: 0 !important;
+            }
+            
+            .container {
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 20px !important;
+            }
+            
+            .card {
+                box-shadow: none !important;
+                border: 1px solid #ddd !important;
+                page-break-inside: avoid;
+            }
+            
+            .print-header {
+                display: block !important;
+                text-align: center;
+                margin-bottom: 30px;
+                padding-bottom: 20px;
+                border-bottom: 2px solid #333;
+            }
+            
+            .patient-info {
+                display: block !important;
+                margin-bottom: 30px;
+                padding: 20px;
+                border: 1px solid #ddd;
+                background: #f9f9f9;
+            }
+            
+            .print-footer {
+                display: block !important;
+                text-align: center;
+                margin-top: 40px;
+                padding-top: 20px;
+                border-top: 1px solid #ddd;
+                font-size: 12px;
+                color: #666;
+            }
         }
         
-        .stop-button {
-            background: #f44336;
+        /* Responsive */
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .measurements-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .header-content {
+                flex-direction: column;
+                gap: 20px;
+                text-align: center;
+            }
+            
+            .footer {
+                flex-direction: column;
+                gap: 15px;
+                padding: 1rem;
+            }
+            
+            .tabs {
+                justify-content: flex-start;
+            }
         }
         
-        .stop-button:hover {
-            background: #da190b;
+        /* Smart Features */
+        .insights-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: var(--border-radius);
+            padding: 1.8rem;
+            margin-top: 2rem;
         }
         
-        .connection-status {
-            text-align: center;
-            padding: 10px;
-            border-radius: 10px;
-            margin-bottom: 15px;
-            font-weight: bold;
+        .insights-card h3 {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         
-        .connected {
-            background: rgba(76, 175, 80, 0.3);
-            border: 2px solid #4CAF50;
-        }
-        
-        .disconnected {
-            background: rgba(244, 67, 54, 0.3);
-            border: 2px solid #f44336;
-        }
-        
-        .log {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 10px;
-            padding: 15px;
-            margin-top: 20px;
-            max-height: 200px;
-            overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-        }
-        
-        .log-entry {
-            margin-bottom: 5px;
-            padding: 2px 0;
+        .insight-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.8rem 0;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .insight-item:last-child {
+            border-bottom: none;
+        }
+        
+        .trend-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 600;
+        }
+        
+        .trend-up { color: var(--accent); }
+        .trend-down { color: var(--success); }
+        .trend-stable { color: var(--gray); }
+        
+        /* Quick Stats */
+        .quick-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        
+        .quick-stat {
+            background: white;
+            padding: 1rem;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        
+        .quick-stat .value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            margin: 0.5rem 0;
+        }
+        
+        .quick-stat .label {
+            font-size: 0.8rem;
+            color: var(--gray);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* Loading Animation */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(52, 152, 219, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--secondary);
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Toast Notifications */
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            right: 20px;
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            box-shadow: var(--shadow-hover);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+            border-left: 4px solid var(--success);
+            max-width: 350px;
+        }
+        
+        .toast.error {
+            border-left-color: var(--accent);
+        }
+        
+        .toast.warning {
+            border-left-color: var(--warning);
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        /* Patient Info Form */
+        .patient-form {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 1.8rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+        }
+        
+        .patient-form h3 {
+            margin-bottom: 1.5rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .patient-form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        /* Print Modal */
+        .print-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .print-modal-content {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .print-options {
+            margin: 1.5rem 0;
+        }
+        
+        .print-option {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        
+        .print-option:hover {
+            background: var(--light-blue);
+            border-color: var(--secondary);
+        }
+        
+        .print-option.selected {
+            background: var(--light-blue);
+            border-color: var(--secondary);
+        }
+        
+        .print-option h4 {
+            margin-bottom: 0.5rem;
+            color: var(--primary);
+        }
+        
+        .print-option p {
+            color: var(--gray);
+            font-size: 0.9rem;
         }
     </style>
 </head>
 <body>
+    <header>
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-heartbeat"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>Blutdruck Tracker Pro</h1>
+                    <p class="subtitle">Professionelle Gesundheitsüberwachung</p>
+                </div>
+            </div>
+            <div class="app-controls">
+                <button class="btn btn-secondary" id="printBtn">
+                    <i class="fas fa-print"></i> Drucken
+                </button>
+                <button class="btn btn-secondary" id="exportBtn">
+                    <i class="fas fa-download"></i> Export
+                </button>
+                <button class="btn btn-accent" id="insightBtn">
+                    <i class="fas fa-chart-line"></i> Insights
+                </button>
+            </div>
+        </div>
+    </header>
+    
     <div class="container">
-        <h1>🥖 Brot Thermometer</h1>
-        
-        <div id="connectionStatus" class="connection-status disconnected">
-            Nicht verbunden
+        <!-- Patient Information Form -->
+        <div class="patient-form" id="patientForm">
+            <h3><i class="fas fa-user-circle"></i> Patienteninformationen</h3>
+            <div class="patient-form-grid">
+                <div class="form-group">
+                    <label for="patientName">Vollständiger Name *</label>
+                    <input type="text" id="patientName" class="form-control" placeholder="Max Mustermann">
+                </div>
+                <div class="form-group">
+                    <label for="patientBirthdate">Geburtsdatum</label>
+                    <input type="date" id="patientBirthdate" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="patientHeight">Körpergröße (cm)</label>
+                    <input type="number" id="patientHeight" class="form-control" placeholder="175">
+                </div>
+                <div class="form-group">
+                    <label for="patientWeight">Gewicht (kg)</label>
+                    <input type="number" id="patientWeight" class="form-control" placeholder="70">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="patientMedication">Aktuelle Medikation</label>
+                <textarea id="patientMedication" class="form-control" placeholder="Blutdruckmedikamente, andere regelmäßige Medikamente..." rows="2"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="patientNotes">Weitere Anmerkungen</label>
+                <textarea id="patientNotes" class="form-control" placeholder="Vorerkrankungen, Besonderheiten..." rows="2"></textarea>
+            </div>
+            <button class="btn btn-primary" id="savePatientInfoBtn">
+                <i class="fas fa-save"></i> Patienteninformationen speichern
+            </button>
         </div>
         
-        <div class="status-card">
-            <div class="temperature" id="temperature">--.-°C</div>
-            <div class="status" id="status">Bereit</div>
-            <div class="progress-bar">
-                <div id="progressFill" class="progress-fill"></div>
+        <!-- Print Header (nur beim Drucken) -->
+        <div class="print-header no-print">
+            <h1>Blutdruck-Messprotokoll</h1>
+            <p>Patient: <span id="printPatientName">[Name]</span> • Erstellt am: <span id="currentDatePrint"></span></p>
+        </div>
+        
+        <!-- Patient Info für Druck (nur beim Drucken) -->
+        <div class="patient-info no-print">
+            <h3>Patienteninformationen</h3>
+            <div><strong>Name:</strong> <span id="printInfoName">[Name]</span></div>
+            <div><strong>Geburtsdatum:</strong> <span id="printInfoBirthdate">[Datum]</span></div>
+            <div><strong>Größe/Gewicht:</strong> <span id="printInfoHeightWeight">[Größe] cm / [Gewicht] kg</span></div>
+            <div><strong>Medikation:</strong> <span id="printInfoMedication">[Medikation]</span></div>
+            <div><strong>Anmerkungen:</strong> <span id="printInfoNotes">[Anmerkungen]</span></div>
+            <div><strong>Anzahl der Messungen:</strong> <span id="totalMeasurementsPrint"></span></div>
+        </div>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="dashboard">
+                <i class="fas fa-home"></i> Dashboard
+            </div>
+            <div class="tab" data-tab="entry">
+                <i class="fas fa-edit"></i> Neue Messung
+            </div>
+            <div class="tab" data-tab="history">
+                <i class="fas fa-history"></i> Verlauf
+            </div>
+            <div class="tab" data-tab="analysis">
+                <i class="fas fa-chart-bar"></i> Analyse
+            </div>
+            <div class="tab" data-tab="export">
+                <i class="fas fa-file-export"></i> Export
             </div>
         </div>
         
-        <div class="controls">
-            <button id="connectButton">🔗 Mit Thermometer verbinden</button>
+        <!-- Dashboard Tab -->
+        <div class="tab-content active" id="dashboard">
+            <div class="dashboard-grid">
+                <div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title"><i class="fas fa-tachometer-alt"></i> Aktuelle Werte</h2>
+                            <div class="quick-stats" id="quickStats">
+                                <!-- Wird dynamisch gefüllt -->
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Durchschnitt</div>
+                            <div class="stat-value" id="avgBp">--/--</div>
+                            <div class="stat-label">Blutdruck</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Durchschnitt</div>
+                            <div class="stat-value" id="avgPulse">--</div>
+                            <div class="stat-label">Puls</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Optimale</div>
+                            <div class="stat-value" id="optimalCount">0</div>
+                            <div class="stat-label">Messungen</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Letzte 7 Tage</div>
+                            <div class="stat-value" id="last7Days">0</div>
+                            <div class="stat-label">Messungen</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title"><i class="fas fa-plus-circle"></i> Schnelleingabe</h2>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="quickSystolic">Systolisch</label>
+                                <input type="number" id="quickSystolic" class="form-control" placeholder="120" min="50" max="250">
+                            </div>
+                            <div class="form-group">
+                                <label for="quickDiastolic">Diastolisch</label>
+                                <input type="number" id="quickDiastolic" class="form-control" placeholder="80" min="30" max="150">
+                            </div>
+                            <div class="form-group">
+                                <label for="quickPulse">Puls</label>
+                                <input type="number" id="quickPulse" class="form-control" placeholder="72" min="30" max="200">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="quickNote">Notiz (optional)</label>
+                            <textarea id="quickNote" class="form-control" placeholder="z.B. 'Morgens, nüchtern'"></textarea>
+                        </div>
+                        <button class="btn btn-primary" id="quickSaveBtn" style="width: 100%; margin-top: 1.5rem;">
+                            <i class="fas fa-bolt"></i> Schnellspeichern
+                        </button>
+                    </div>
+                    
+                    <div class="card" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <h2 class="card-title"><i class="fas fa-bell"></i> Erinnerung</h2>
+                        </div>
+                        <p>Nächste geplante Messung:</p>
+                        <div style="display: flex; align-items: center; gap: 15px; margin-top: 1rem;">
+                            <div style="font-size: 2rem; color: var(--secondary);">
+                                <i class="far fa-clock"></i>
+                            </div>
+                            <div>
+                                <h3 style="margin-bottom: 0.2rem;">Heute Abend</h3>
+                                <p style="color: var(--gray); font-size: 0.9rem;">ca. 18:00 - 20:00 Uhr</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-light" id="reminderBtn" style="width: 100%; margin-top: 1.5rem;">
+                            <i class="far fa-calendar-plus"></i> Erinnerung einstellen
+                        </button>
+                    </div>
+                </div>
+            </div>
             
-            <select id="breadSelect">
-                <option value="0">Weizenbrot (96°C)</option>
-                <option value="1">Roggenbrot (98°C)</option>
-                <option value="2">Vollkornbrot (97°C)</option>
-                <option value="3">Ciabatta (94°C)</option>
-                <option value="4">Baguette (95°C)</option>
-            </select>
-            
-            <div class="button-group">
-                <button id="startButton">🔥 Backen starten</button>
-                <button id="stopButton" class="stop-button" disabled>⏹️ Stopp</button>
+            <!-- Insights Card -->
+            <div class="insights-card" id="insightsCard">
+                <h3><i class="fas fa-lightbulb"></i> Intelligente Erkenntnisse</h3>
+                <div id="insightsContent">
+                    <p>Laden der Erkenntnisse...</p>
+                </div>
             </div>
         </div>
         
-        <div class="log" id="log">
-            <div class="log-entry">App gestartet - Bereit für Verbindung</div>
+        <!-- Neue Messung Tab -->
+        <div class="tab-content" id="entry">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title"><i class="fas fa-edit"></i> Detaillierte Messung</h2>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="systolic">Systolisch (mmHg)</label>
+                        <div class="blood-pressure-input">
+                            <input type="number" id="systolic" class="form-control" placeholder="120" min="50" max="250">
+                            <span class="separator">/</span>
+                            <input type="number" id="diastolic" class="form-control" placeholder="80" min="30" max="150">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="pulse">Puls (bpm)</label>
+                        <input type="number" id="pulse" class="form-control" placeholder="72" min="30" max="200">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="date">Datum</label>
+                        <input type="date" id="date" class="form-control">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="time">Uhrzeit</label>
+                        <input type="time" id="time" class="form-control">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="note">Bemerkung</label>
+                    <textarea id="note" class="form-control" placeholder="Besondere Umstände, Medikamente, Symptome..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>Zustand während der Messung</label>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 0.5rem;">
+                        <button class="btn btn-light condition-btn" data-condition="ruhig">
+                            <i class="fas fa-couch"></i> Ruhig
+                        </button>
+                        <button class="btn btn-light condition-btn" data-condition="nach-essen">
+                            <i class="fas fa-utensils"></i> Nach Essen
+                        </button>
+                        <button class="btn btn-light condition-btn" data-condition="stress">
+                            <i class="fas fa-running"></i> Nach Anstrengung
+                        </button>
+                        <button class="btn btn-light condition-btn" data-condition="morgens">
+                            <i class="fas fa-sun"></i> Morgens
+                        </button>
+                        <button class="btn btn-light condition-btn" data-condition="abends">
+                            <i class="fas fa-moon"></i> Abends
+                        </button>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 15px; margin-top: 2rem;">
+                    <button class="btn btn-primary" id="saveBtn">
+                        <i class="fas fa-save"></i> Messung speichern
+                    </button>
+                    <button class="btn btn-light" id="nowBtn">
+                        <i class="fas fa-clock"></i> Aktuelle Zeit
+                    </button>
+                    <button class="btn btn-light" id="resetBtn">
+                        <i class="fas fa-redo"></i> Zurücksetzen
+                    </button>
+                </div>
+            </div>
+            
+            <div class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <h2 class="card-title"><i class="fas fa-info-circle"></i> Blutdruck-Klassifikation</h2>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--light-blue);">
+                                <th style="padding: 15px; text-align: left;">Kategorie</th>
+                                <th style="padding: 15px; text-align: left;">Systolisch</th>
+                                <th style="padding: 15px; text-align: left;">Diastolisch</th>
+                                <th style="padding: 15px; text-align: left;">Empfehlung</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 12px; font-weight: 600; color: var(--success);">Optimal</td>
+                                <td style="padding: 12px;">&lt; 120</td>
+                                <td style="padding: 12px;">&lt; 80</td>
+                                <td style="padding: 12px; font-size: 0.9rem;">Weiter so!</td>
+                            </tr>
+                            <tr style="background: #f9f9f9;">
+                                <td style="padding: 12px; font-weight: 600; color: var(--secondary);">Normal</td>
+                                <td style="padding: 12px;">120-129</td>
+                                <td style="padding: 12px;">80-84</td>
+                                <td style="padding: 12px; font-size: 0.9rem;">Gesunder Bereich</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 12px; font-weight: 600; color: #f39c12;">Hochnormal</td>
+                                <td style="padding: 12px;">130-139</td>
+                                <td style="padding: 12px;">85-89</td>
+                                <td style="padding: 12px; font-size: 0.9rem;">Beobachten</td>
+                            </tr>
+                            <tr style="background: #f9f9f9;">
+                                <td style="padding: 12px; font-weight: 600; color: #e67e22;">Hypertonie Grad 1</td>
+                                <td style="padding: 12px;">140-159</td>
+                                <td style="padding: 12px;">90-99</td>
+                                <td style="padding: 12px; font-size: 0.9rem;">Arzt konsultieren</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 12px; font-weight: 600; color: var(--accent);">Hypertonie Grad 2</td>
+                                <td style="padding: 12px;">160-179</td>
+                                <td style="padding: 12px;">100-109</td>
+                                <td style="padding: 12px; font-size: 0.9rem;">Dringend Arzt</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Verlauf Tab -->
+        <div class="tab-content" id="history">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title"><i class="fas fa-history"></i> Messverlauf</h2>
+                    <div>
+                        <button class="btn btn-light" id="filterWeek">
+                            <i class="fas fa-calendar-week"></i> Letzte Woche
+                        </button>
+                        <button class="btn btn-light" id="filterMonth">
+                            <i class="fas fa-calendar-alt"></i> Letzter Monat
+                        </button>
+                        <button class="btn btn-light" id="filterAll">
+                            <i class="fas fa-calendar"></i> Alle
+                        </button>
+                    </div>
+                </div>
+                <div id="measurementsList">
+                    <!-- Messungen werden hier dynamisch eingefügt -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Analyse Tab -->
+        <div class="tab-content" id="analysis">
+            <div class="dashboard-grid">
+                <div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title"><i class="fas fa-chart-line"></i> Blutdruck-Verlauf</h2>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="bpChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="card" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <h2 class="card-title"><i class="fas fa-chart-bar"></i> Tageszeit-Analyse</h2>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="timeChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title"><i class="fas fa-chart-pie"></i> Verteilung</h2>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="distributionChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="card" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <h2 class="card-title"><i class="fas fa-chart-area"></i> Puls-Verlauf</h2>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="pulseChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Export Tab -->
+        <div class="tab-content" id="export">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title"><i class="fas fa-file-export"></i> Datenexport & Druck</h2>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+                    <div class="card" style="background: var(--light-blue);">
+                        <h3 style="margin-bottom: 1rem; color: var(--primary);">
+                            <i class="fas fa-print"></i> Arztbericht drucken
+                        </h3>
+                        <p style="margin-bottom: 1rem; color: var(--gray);">
+                            Erstellen Sie einen professionellen Bericht für Ihren Arztbesuch.
+                        </p>
+                        <button class="btn btn-primary" id="printReportBtn">
+                            <i class="fas fa-print"></i> Bericht generieren
+                        </button>
+                    </div>
+                    
+                    <div class="card" style="background: #f0f7ff;">
+                        <h3 style="margin-bottom: 1rem; color: var(--primary);">
+                            <i class="fas fa-file-excel"></i> Excel-Export
+                        </h3>
+                        <p style="margin-bottom: 1rem; color: var(--gray);">
+                            Exportieren Sie alle Daten für eine detaillierte Analyse.
+                        </p>
+                        <button class="btn btn-success" id="exportExcelBtn">
+                            <i class="fas fa-file-excel"></i> Als Excel exportieren
+                        </button>
+                    </div>
+                    
+                    <div class="card" style="background: #fff8f0;">
+                        <h3 style="margin-bottom: 1rem; color: var(--primary);">
+                            <i class="fas fa-cloud-upload-alt"></i> Cloud-Backup
+                        </h3>
+                        <p style="margin-bottom: 1rem; color: var(--gray);">
+                            Sichern Sie Ihre Daten in der Cloud (erfordert Anmeldung).
+                        </p>
+                        <button class="btn btn-secondary" id="cloudBackupBtn">
+                            <i class="fas fa-cloud"></i> In Cloud sichern
+                        </button>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 2rem;">
+                    <h3 style="margin-bottom: 1rem; color: var(--primary);">
+                        <i class="fas fa-cogs"></i> Erweiterte Einstellungen
+                    </h3>
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                        <button class="btn btn-light" id="backupBtn">
+                            <i class="fas fa-download"></i> Lokales Backup
+                        </button>
+                        <button class="btn btn-light" id="restoreBtn">
+                            <i class="fas fa-upload"></i> Backup wiederherstellen
+                        </button>
+                        <button class="btn btn-light" id="clearOldBtn">
+                            <i class="fas fa-trash"></i> Alte Daten löschen
+                        </button>
+                        <button class="btn btn-accent" id="resetAllBtn">
+                            <i class="fas fa-redo"></i> Zurücksetzen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Print Footer -->
+        <div class="print-footer no-print">
+            <p>Blutdruck Tracker Pro • Version 2.1 • Software: J. Depke</p>
+            <p>Dieses Protokoll dient der Dokumentation und ersetzt keine ärztliche Beratung.</p>
         </div>
     </div>
-
-    <script>
-        let device = null;
-        let server = null;
-        let service = null;
-        let temperatureCharacteristic = null;
-        let isConnected = false;
-
-        // BLE UUIDs - müssen mit ESP32 übereinstimmen
-        const SERVICE_UUID = '12341000-1234-1234-1234-123456789abc';
-        const TEMPERATURE_UUID = '12341001-1234-1234-1234-123456789abc';
-        const SETTINGS_UUID = '12341003-1234-1234-1234-123456789abc';
-
-        // UI Elements
-        const connectButton = document.getElementById('connectButton');
-        const startButton = document.getElementById('startButton');
-        const stopButton = document.getElementById('stopButton');
-        const temperatureElement = document.getElementById('temperature');
-        const statusElement = document.getElementById('status');
-        const progressFill = document.getElementById('progressFill');
-        const connectionStatus = document.getElementById('connectionStatus');
-        const logElement = document.getElementById('log');
-        const breadSelect = document.getElementById('breadSelect');
-
-        // Event Listeners
-        connectButton.addEventListener('click', connectBLE);
-        startButton.addEventListener('click', startBaking);
-        stopButton.addEventListener('click', stopBaking);
-
-        function log(message) {
-            const timestamp = new Date().toLocaleTimeString();
-            const logEntry = document.createElement('div');
-            logEntry.className = 'log-entry';
-            logEntry.textContent = `${timestamp}: ${message}`;
-            logElement.prepend(logEntry);
+    
+    <div class="footer">
+        <div class="footer-info">
+            <span class="version">v2.1 Pro</span>
+            <span>Blutdruck Tracker Pro • Software: J. Depke</span>
+            <span id="lastUpdate"></span>
+        </div>
+        <div class="footer-nav">
+            <button class="btn btn-light" id="homeBtn">
+                <i class="fas fa-home"></i>
+            </button>
+            <button class="btn btn-light" id="addQuickBtn">
+                <i class="fas fa-plus"></i>
+            </button>
+            <button class="btn btn-light" id="chartQuickBtn">
+                <i class="fas fa-chart-line"></i>
+            </button>
+            <button class="btn btn-light" id="settingsBtn">
+                <i class="fas fa-cog"></i>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Print Modal -->
+    <div class="print-modal" id="printModal">
+        <div class="print-modal-content">
+            <div class="card-header">
+                <h2 class="card-title"><i class="fas fa-print"></i> Druckoptionen</h2>
+                <button class="delete-btn" id="closePrintModalBtn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
             
-            // Limit log entries
-            if (logElement.children.length > 20) {
-                logElement.removeChild(logElement.lastChild);
+            <div class="print-options">
+                <div class="print-option" data-option="simple">
+                    <h4><i class="fas fa-file-alt"></i> Einfacher Bericht</h4>
+                    <p>Liste der Messungen ohne Diagramme</p>
+                </div>
+                <div class="print-option selected" data-option="detailed">
+                    <h4><i class="fas fa-file-medical"></i> Detaillierter Arztbericht</h4>
+                    <p>Kompletter Bericht mit Diagrammen und Statistiken</p>
+                </div>
+                <div class="print-option" data-option="custom">
+                    <h4><i class="fas fa-sliders-h"></i> Benutzerdefiniert</h4>
+                    <p>Wählen Sie aus, was gedruckt werden soll</p>
+                </div>
+            </div>
+            
+            <div id="customOptions" style="display: none; margin-top: 1.5rem;">
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="optMeasurements" checked>
+                        <span>Messungen auflisten</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="optCharts" checked>
+                        <span>Diagramme einbeziehen</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="optStats" checked>
+                        <span>Statistiken anzeigen</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="optPatientInfo" checked>
+                        <span>Patienteninformationen</span>
+                    </label>
+                </div>
+                
+                <div style="margin-top: 1rem;">
+                    <label>Zeitraum</label>
+                    <div style="display: flex; gap: 10px; margin-top: 0.5rem;">
+                        <input type="date" id="printStartDate" class="form-control" style="flex: 1;">
+                        <span style="align-self: center;">bis</span>
+                        <input type="date" id="printEndDate" class="form-control" style="flex: 1;">
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 15px; margin-top: 2rem;">
+                <button class="btn btn-light" id="cancelPrintBtn">
+                    <i class="fas fa-times"></i> Abbrechen
+                </button>
+                <button class="btn btn-primary" id="confirmPrintBtn">
+                    <i class="fas fa-print"></i> Drucken
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Container -->
+    <div id="toastContainer"></div>
+    
+    <!-- Settings Modal -->
+    <div id="settingsModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+        <div class="card" style="max-width: 500px; max-height: 80vh; overflow-y: auto;">
+            <div class="card-header">
+                <h2 class="card-title"><i class="fas fa-cog"></i> Einstellungen</h2>
+                <button class="delete-btn" id="closeSettingsBtn" style="position: static;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div style="margin-top: 1.5rem;">
+                <div class="form-group">
+                    <label>Standard-Messzeiten</label>
+                    <div style="margin-top: 0.5rem;">
+                        <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                            <input type="checkbox" id="reminderMorning" checked>
+                            <span>Morgens (7:00)</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                            <input type="checkbox" id="reminderEvening" checked>
+                            <span>Abends (19:00)</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Druckeinstellungen</label>
+                    <div style="margin-top: 0.5rem;">
+                        <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                            <input type="checkbox" id="printPatientInfo" checked>
+                            <span>Patienteninfo automatisch drucken</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                            <input type="checkbox" id="printDiagrams" checked>
+                            <span>Diagramme immer drucken</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 15px; margin-top: 2rem;">
+                    <button class="btn btn-primary" id="saveSettingsBtn">
+                        <i class="fas fa-save"></i> Speichern
+                    </button>
+                    <button class="btn btn-light" id="cancelSettingsBtn">
+                        <i class="fas fa-times"></i> Abbrechen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ==============================================
+        // INITIALISIERUNG & KONFIGURATION
+        // ==============================================
+        
+        // App-Version und Konfiguration
+        const APP_VERSION = "2.1 Pro";
+        const APP_NAME = "Blutdruck Tracker Pro";
+        const SOFTWARE_CREATOR = "J. Depke";
+        
+        // Dateninitialisierung
+        let measurements = JSON.parse(localStorage.getItem('bpMeasurements')) || [];
+        let patientInfo = JSON.parse(localStorage.getItem('bpPatientInfo')) || {
+            name: '',
+            birthdate: '',
+            height: '',
+            weight: '',
+            medication: '',
+            notes: ''
+        };
+        let settings = JSON.parse(localStorage.getItem('bpSettings')) || {
+            reminders: { morning: true, evening: true },
+            printSettings: { patientInfo: true, diagrams: true }
+        };
+        
+        // Chart-Instanzen
+        let trendChart = null;
+        let bpChart = null;
+        let pulseChart = null;
+        let distributionChart = null;
+        let timeChart = null;
+        
+        // Filterzustand
+        let currentFilter = 'all';
+        
+        // DOM-Elemente
+        const elements = {
+            // Patient Information
+            patientForm: document.getElementById('patientForm'),
+            patientName: document.getElementById('patientName'),
+            patientBirthdate: document.getElementById('patientBirthdate'),
+            patientHeight: document.getElementById('patientHeight'),
+            patientWeight: document.getElementById('patientWeight'),
+            patientMedication: document.getElementById('patientMedication'),
+            patientNotes: document.getElementById('patientNotes'),
+            savePatientInfoBtn: document.getElementById('savePatientInfoBtn'),
+            
+            // Print Elements
+            printPatientName: document.getElementById('printPatientName'),
+            printInfoName: document.getElementById('printInfoName'),
+            printInfoBirthdate: document.getElementById('printInfoBirthdate'),
+            printInfoHeightWeight: document.getElementById('printInfoHeightWeight'),
+            printInfoMedication: document.getElementById('printInfoMedication'),
+            printInfoNotes: document.getElementById('printInfoNotes'),
+            
+            // Eingabefelder
+            systolic: document.getElementById('systolic'),
+            diastolic: document.getElementById('diastolic'),
+            pulse: document.getElementById('pulse'),
+            date: document.getElementById('date'),
+            time: document.getElementById('time'),
+            note: document.getElementById('note'),
+            
+            // Quick-Input
+            quickSystolic: document.getElementById('quickSystolic'),
+            quickDiastolic: document.getElementById('quickDiastolic'),
+            quickPulse: document.getElementById('quickPulse'),
+            quickNote: document.getElementById('quickNote'),
+            
+            // Buttons
+            saveBtn: document.getElementById('saveBtn'),
+            nowBtn: document.getElementById('nowBtn'),
+            resetBtn: document.getElementById('resetBtn'),
+            quickSaveBtn: document.getElementById('quickSaveBtn'),
+            
+            // Export/Import
+            exportBtn: document.getElementById('exportBtn'),
+            printBtn: document.getElementById('printBtn'),
+            printReportBtn: document.getElementById('printReportBtn'),
+            exportExcelBtn: document.getElementById('exportExcelBtn'),
+            cloudBackupBtn: document.getElementById('cloudBackupBtn'),
+            backupBtn: document.getElementById('backupBtn'),
+            restoreBtn: document.getElementById('restoreBtn'),
+            clearOldBtn: document.getElementById('clearOldBtn'),
+            resetAllBtn: document.getElementById('resetAllBtn'),
+            
+            // Filter
+            filterWeek: document.getElementById('filterWeek'),
+            filterMonth: document.getElementById('filterMonth'),
+            filterAll: document.getElementById('filterAll'),
+            
+            // Insights
+            insightBtn: document.getElementById('insightBtn'),
+            insightsContent: document.getElementById('insightsContent'),
+            
+            // Navigation
+            tabs: document.querySelectorAll('.tab'),
+            tabContents: document.querySelectorAll('.tab-content'),
+            homeBtn: document.getElementById('homeBtn'),
+            addQuickBtn: document.getElementById('addQuickBtn'),
+            chartQuickBtn: document.getElementById('chartQuickBtn'),
+            settingsBtn: document.getElementById('settingsBtn'),
+            
+            // Stats
+            quickStats: document.getElementById('quickStats'),
+            avgBp: document.getElementById('avgBp'),
+            avgPulse: document.getElementById('avgPulse'),
+            optimalCount: document.getElementById('optimalCount'),
+            last7Days: document.getElementById('last7Days'),
+            
+            // Print Modal
+            printModal: document.getElementById('printModal'),
+            closePrintModalBtn: document.getElementById('closePrintModalBtn'),
+            cancelPrintBtn: document.getElementById('cancelPrintBtn'),
+            confirmPrintBtn: document.getElementById('confirmPrintBtn'),
+            printOptions: document.querySelectorAll('.print-option'),
+            customOptions: document.getElementById('customOptions'),
+            optMeasurements: document.getElementById('optMeasurements'),
+            optCharts: document.getElementById('optCharts'),
+            optStats: document.getElementById('optStats'),
+            optPatientInfo: document.getElementById('optPatientInfo'),
+            printStartDate: document.getElementById('printStartDate'),
+            printEndDate: document.getElementById('printEndDate'),
+            
+            // Settings Modal
+            settingsModal: document.getElementById('settingsModal'),
+            closeSettingsBtn: document.getElementById('closeSettingsBtn'),
+            saveSettingsBtn: document.getElementById('saveSettingsBtn'),
+            cancelSettingsBtn: document.getElementById('cancelSettingsBtn'),
+            reminderMorning: document.getElementById('reminderMorning'),
+            reminderEvening: document.getElementById('reminderEvening'),
+            printPatientInfo: document.getElementById('printPatientInfo'),
+            printDiagrams: document.getElementById('printDiagrams')
+        };
+        
+        // ==============================================
+        // INITIALISIERUNGSFUNKTIONEN
+        // ==============================================
+        
+        function init() {
+            // Aktuelles Datum setzen
+            setCurrentDateTime();
+            
+            // App-Info aktualisieren
+            updateAppInfo();
+            
+            // Patient Information laden
+            loadPatientInfo();
+            
+            // Event Listener registrieren
+            setupEventListeners();
+            
+            // Messungen laden
+            loadMeasurements();
+            
+            // Service Worker für PWA
+            registerServiceWorker();
+            
+            // Intelligente Erkenntnisse berechnen
+            setTimeout(calculateInsights, 1000);
+            
+            // Print Modal Datumsfelder setzen
+            const today = new Date();
+            const oneMonthAgo = new Date();
+            oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+            
+            elements.printStartDate.value = oneMonthAgo.toISOString().split('T')[0];
+            elements.printEndDate.value = today.toISOString().split('T')[0];
+        }
+        
+        function setupEventListeners() {
+            // Patient Info speichern
+            elements.savePatientInfoBtn.addEventListener('click', savePatientInfo);
+            
+            // Speichern-Buttons
+            elements.saveBtn.addEventListener('click', saveMeasurement);
+            elements.quickSaveBtn.addEventListener('click', saveQuickMeasurement);
+            
+            // Zeit-Buttons
+            elements.nowBtn.addEventListener('click', setCurrentDateTime);
+            elements.resetBtn.addEventListener('click', resetForm);
+            
+            // Export/Import Buttons
+            elements.exportBtn.addEventListener('click', exportData);
+            elements.printBtn.addEventListener('click', showPrintModal);
+            elements.printReportBtn.addEventListener('click', () => showPrintModal('detailed'));
+            elements.exportExcelBtn.addEventListener('click', exportToExcel);
+            elements.cloudBackupBtn.addEventListener('click', showCloudBackup);
+            elements.backupBtn.addEventListener('click', createBackup);
+            elements.restoreBtn.addEventListener('click', restoreBackup);
+            elements.clearOldBtn.addEventListener('click', clearOldData);
+            elements.resetAllBtn.addEventListener('click', resetAllData);
+            
+            // Filter-Buttons
+            elements.filterWeek.addEventListener('click', () => setFilter('week'));
+            elements.filterMonth.addEventListener('click', () => setFilter('month'));
+            elements.filterAll.addEventListener('click', () => setFilter('all'));
+            
+            // Insight-Button
+            elements.insightBtn.addEventListener('click', showInsights);
+            
+            // Navigation
+            elements.tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabId = tab.getAttribute('data-tab');
+                    switchTab(tabId);
+                });
+            });
+            
+            elements.homeBtn.addEventListener('click', () => switchTab('dashboard'));
+            elements.addQuickBtn.addEventListener('click', () => switchTab('entry'));
+            elements.chartQuickBtn.addEventListener('click', () => switchTab('analysis'));
+            elements.settingsBtn.addEventListener('click', showSettingsModal);
+            
+            // Print Modal
+            elements.closePrintModalBtn.addEventListener('click', hidePrintModal);
+            elements.cancelPrintBtn.addEventListener('click', hidePrintModal);
+            elements.confirmPrintBtn.addEventListener('click', confirmPrint);
+            
+            elements.printOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    elements.printOptions.forEach(opt => opt.classList.remove('selected'));
+                    this.classList.add('selected');
+                    
+                    const optionType = this.getAttribute('data-option');
+                    if (optionType === 'custom') {
+                        elements.customOptions.style.display = 'block';
+                    } else {
+                        elements.customOptions.style.display = 'none';
+                    }
+                });
+            });
+            
+            // Settings Modal
+            elements.closeSettingsBtn.addEventListener('click', hideSettingsModal);
+            elements.saveSettingsBtn.addEventListener('click', saveSettings);
+            elements.cancelSettingsBtn.addEventListener('click', hideSettingsModal);
+            
+            // Zustands-Buttons
+            document.querySelectorAll('.condition-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const condition = this.getAttribute('data-condition');
+                    addConditionToNote(condition);
+                });
+            });
+        }
+        
+        function updateAppInfo() {
+            document.getElementById('lastUpdate').textContent = 
+                `Zuletzt aktualisiert: ${new Date().toLocaleDateString('de-DE')}`;
+            
+            document.getElementById('currentDatePrint').textContent = 
+                new Date().toLocaleDateString('de-DE');
+        }
+        
+        function loadPatientInfo() {
+            elements.patientName.value = patientInfo.name || '';
+            elements.patientBirthdate.value = patientInfo.birthdate || '';
+            elements.patientHeight.value = patientInfo.height || '';
+            elements.patientWeight.value = patientInfo.weight || '';
+            elements.patientMedication.value = patientInfo.medication || '';
+            elements.patientNotes.value = patientInfo.notes || '';
+            
+            updatePrintPatientInfo();
+        }
+        
+        function updatePrintPatientInfo() {
+            elements.printPatientName.textContent = patientInfo.name || '[Name]';
+            elements.printInfoName.textContent = patientInfo.name || '[Name]';
+            elements.printInfoBirthdate.textContent = patientInfo.birthdate ? 
+                new Date(patientInfo.birthdate).toLocaleDateString('de-DE') : '[Datum]';
+            elements.printInfoHeightWeight.textContent = 
+                `${patientInfo.height || '[Größe]'} cm / ${patientInfo.weight || '[Gewicht]'} kg`;
+            elements.printInfoMedication.textContent = patientInfo.medication || '[Medikation]';
+            elements.printInfoNotes.textContent = patientInfo.notes || '[Anmerkungen]';
+        }
+        
+        // ==============================================
+        // PATIENTENINFORMATIONEN
+        // ==============================================
+        
+        function savePatientInfo() {
+            const name = elements.patientName.value.trim();
+            
+            if (!name) {
+                showToast('Bitte geben Sie mindestens einen Namen ein', 'error');
+                return;
             }
             
-            console.log(message);
+            patientInfo = {
+                name: name,
+                birthdate: elements.patientBirthdate.value,
+                height: elements.patientHeight.value,
+                weight: elements.patientWeight.value,
+                medication: elements.patientMedication.value,
+                notes: elements.patientNotes.value
+            };
+            
+            localStorage.setItem('bpPatientInfo', JSON.stringify(patientInfo));
+            updatePrintPatientInfo();
+            showToast('Patienteninformationen gespeichert', 'success');
         }
-
-        async function connectBLE() {
-            try {
-                log('Suche BLE Gerät...');
-                connectButton.disabled = true;
-                connectButton.textContent = 'Suche...';
+        
+        // ==============================================
+        // DATENMANAGEMENT
+        // ==============================================
+        
+        function setCurrentDateTime() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            
+            elements.date.value = `${year}-${month}-${day}`;
+            
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            elements.time.value = `${hours}:${minutes}`;
+        }
+        
+        function resetForm() {
+            elements.systolic.value = '';
+            elements.diastolic.value = '';
+            elements.pulse.value = '';
+            elements.note.value = '';
+            setCurrentDateTime();
+        }
+        
+        function addConditionToNote(condition) {
+            const conditionsMap = {
+                'ruhig': 'Gemessen in Ruhe',
+                'nach-essen': 'Nach dem Essen',
+                'stress': 'Nach körperlicher Anstrengung',
+                'morgens': 'Morgens gemessen',
+                'abends': 'Abends gemessen'
+            };
+            
+            const currentNote = elements.note.value;
+            const newCondition = conditionsMap[condition];
+            
+            if (currentNote.includes(newCondition)) {
+                return;
+            }
+            
+            if (currentNote) {
+                elements.note.value = currentNote + ', ' + newCondition;
+            } else {
+                elements.note.value = newCondition;
+            }
+        }
+        
+        // ==============================================
+        // MESSUNGEN SPEICHERN & LADEN
+        // ==============================================
+        
+        function saveMeasurement() {
+            const measurement = getMeasurementFromForm();
+            if (!validateMeasurement(measurement)) return;
+            
+            measurements.unshift(measurement);
+            saveToLocalStorage();
+            loadMeasurements();
+            showToast('Messung erfolgreich gespeichert!', 'success');
+            resetForm();
+        }
+        
+        function saveQuickMeasurement() {
+            const measurement = {
+                id: Date.now(),
+                systolic: parseInt(elements.quickSystolic.value),
+                diastolic: parseInt(elements.quickDiastolic.value),
+                pulse: parseInt(elements.quickPulse.value),
+                date: new Date().toISOString().split('T')[0],
+                time: new Date().toTimeString().slice(0, 5),
+                note: elements.quickNote.value || 'Schnellmessung',
+                timestamp: new Date().getTime()
+            };
+            
+            if (!validateMeasurement(measurement)) return;
+            
+            measurements.unshift(measurement);
+            saveToLocalStorage();
+            loadMeasurements();
+            showToast('Schnellmessung gespeichert!', 'success');
+            
+            // Quick-Formular leeren
+            elements.quickSystolic.value = '';
+            elements.quickDiastolic.value = '';
+            elements.quickPulse.value = '';
+            elements.quickNote.value = '';
+        }
+        
+        function getMeasurementFromForm() {
+            return {
+                id: Date.now(),
+                systolic: parseInt(elements.systolic.value),
+                diastolic: parseInt(elements.diastolic.value),
+                pulse: parseInt(elements.pulse.value),
+                date: elements.date.value,
+                time: elements.time.value,
+                note: elements.note.value,
+                timestamp: new Date(`${elements.date.value}T${elements.time.value}`).getTime()
+            };
+        }
+        
+        function validateMeasurement(measurement) {
+            if (!measurement.systolic || !measurement.diastolic || !measurement.pulse) {
+                showToast('Bitte alle Werte eingeben!', 'error');
+                return false;
+            }
+            
+            if (measurement.systolic < 50 || measurement.systolic > 250) {
+                showToast('Systolischer Wert muss zwischen 50 und 250 liegen!', 'error');
+                return false;
+            }
+            
+            if (measurement.diastolic < 30 || measurement.diastolic > 150) {
+                showToast('Diastolischer Wert muss zwischen 30 und 150 liegen!', 'error');
+                return false;
+            }
+            
+            if (measurement.pulse < 30 || measurement.pulse > 200) {
+                showToast('Puls muss zwischen 30 und 200 liegen!', 'error');
+                return false;
+            }
+            
+            return true;
+        }
+        
+        function saveToLocalStorage() {
+            localStorage.setItem('bpMeasurements', JSON.stringify(measurements));
+        }
+        
+        function loadMeasurements() {
+            updateStats();
+            renderMeasurements();
+            updateCharts();
+        }
+        
+        // ==============================================
+        // VISUALISIERUNG & RENDERING
+        // ==============================================
+        
+        function renderMeasurements() {
+            const container = document.getElementById('measurementsList');
+            
+            if (measurements.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem; color: var(--gray);">
+                        <i class="fas fa-heartbeat" style="font-size: 4rem; opacity: 0.3; margin-bottom: 1rem;"></i>
+                        <h3>Noch keine Messungen</h3>
+                        <p>Fügen Sie Ihre erste Messung hinzu, um loszulegen.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let filteredMeasurements = filterMeasurements(measurements);
+            
+            container.innerHTML = '<div class="measurements-grid" id="measurementsContainer"></div>';
+            const grid = document.getElementById('measurementsContainer');
+            
+            filteredMeasurements.forEach(measurement => {
+                const status = getBloodPressureStatus(measurement.systolic, measurement.diastolic);
+                const statusClass = `status-${status.class}`;
                 
-                if (!navigator.bluetooth) {
-                    throw new Error('Web Bluetooth wird nicht unterstützt! Verwende Chrome/Edge.');
+                const card = document.createElement('div');
+                card.className = `measurement-card ${status.class === 'optimal' ? 'optimal' : status.class.includes('hypertension') ? 'high' : ''}`;
+                card.innerHTML = `
+                    <button class="delete-btn" data-id="${measurement.id}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    
+                    <div class="measurement-header">
+                        <div class="measurement-date">${formatDate(measurement.date)}</div>
+                        <div class="measurement-time">${measurement.time}</div>
+                    </div>
+                    
+                    <div class="measurement-values">
+                        <div class="value-item">
+                            <div class="value-label">Systolisch</div>
+                            <div class="value systolic">${measurement.systolic}</div>
+                        </div>
+                        <div class="value-item">
+                            <div class="value-label">Diastolisch</div>
+                            <div class="value diastolic">${measurement.diastolic}</div>
+                        </div>
+                        <div class="value-item">
+                            <div class="value-label">Puls</div>
+                            <div class="value pulse">${measurement.pulse}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="measurement-status ${statusClass}">
+                        <span>${status.text}</span>
+                    </div>
+                    
+                    ${measurement.note ? `
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--light);">
+                            <strong>Notiz:</strong> ${measurement.note}
+                        </div>
+                    ` : ''}
+                `;
+                
+                grid.appendChild(card);
+            });
+            
+            // Delete-Buttons
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const id = parseInt(this.getAttribute('data-id'));
+                    deleteMeasurement(id);
+                });
+            });
+        }
+        
+        function filterMeasurements(measurements) {
+            const now = new Date();
+            const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            
+            switch(currentFilter) {
+                case 'week':
+                    return measurements.filter(m => m.timestamp >= oneWeekAgo.getTime());
+                case 'month':
+                    return measurements.filter(m => m.timestamp >= oneMonthAgo.getTime());
+                default:
+                    return measurements;
+            }
+        }
+        
+        function setFilter(filter) {
+            currentFilter = filter;
+            
+            // Aktive Klasse setzen
+            document.querySelectorAll('[id^="filter"]').forEach(btn => {
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-light');
+            });
+            
+            switch(filter) {
+                case 'week':
+                    elements.filterWeek.classList.remove('btn-light');
+                    elements.filterWeek.classList.add('btn-primary');
+                    break;
+                case 'month':
+                    elements.filterMonth.classList.remove('btn-light');
+                    elements.filterMonth.classList.add('btn-primary');
+                    break;
+                case 'all':
+                    elements.filterAll.classList.remove('btn-light');
+                    elements.filterAll.classList.add('btn-primary');
+                    break;
+            }
+            
+            renderMeasurements();
+        }
+        
+        // ==============================================
+        // STATISTIKEN & ANALYSEN
+        // ==============================================
+        
+        function updateStats() {
+            if (measurements.length === 0) {
+                elements.avgBp.textContent = '--/--';
+                elements.avgPulse.textContent = '--';
+                elements.optimalCount.textContent = '0';
+                elements.last7Days.textContent = '0';
+                return;
+            }
+            
+            // Durchschnittswerte
+            const avgSystolic = Math.round(measurements.reduce((sum, m) => sum + m.systolic, 0) / measurements.length);
+            const avgDiastolic = Math.round(measurements.reduce((sum, m) => sum + m.diastolic, 0) / measurements.length);
+            const avgPulse = Math.round(measurements.reduce((sum, m) => sum + m.pulse, 0) / measurements.length);
+            
+            elements.avgBp.textContent = `${avgSystolic}/${avgDiastolic}`;
+            elements.avgPulse.textContent = avgPulse.toString();
+            
+            // Optimale Messungen
+            const optimalCount = measurements.filter(m => 
+                m.systolic < 120 && m.diastolic < 80
+            ).length;
+            elements.optimalCount.textContent = optimalCount.toString();
+            
+            // Messungen der letzten 7 Tage
+            const oneWeekAgo = new Date().getTime() - 7 * 24 * 60 * 60 * 1000;
+            const lastWeekCount = measurements.filter(m => m.timestamp >= oneWeekAgo).length;
+            elements.last7Days.textContent = lastWeekCount.toString();
+            
+            // Quick Stats
+            updateQuickStats();
+            
+            // Print Stats
+            document.getElementById('totalMeasurementsPrint').textContent = measurements.length;
+        }
+        
+        function updateQuickStats() {
+            if (measurements.length === 0) {
+                elements.quickStats.innerHTML = `
+                    <div style="text-align: center; color: var(--gray);">
+                        Keine Daten
+                    </div>
+                `;
+                return;
+            }
+            
+            // Letzte Messung
+            const lastMeasurement = measurements[0];
+            const status = getBloodPressureStatus(lastMeasurement.systolic, lastMeasurement.diastolic);
+            
+            // Trend berechnen (letzte 7 vs vorherige 7 Tage)
+            const now = new Date().getTime();
+            const last7Days = measurements.filter(m => m.timestamp >= now - 7*24*60*60*1000);
+            const previous7Days = measurements.filter(m => 
+                m.timestamp >= now - 14*24*60*60*1000 && 
+                m.timestamp < now - 7*24*60*60*1000
+            );
+            
+            let systolicTrend = 'stable';
+            let diastolicTrend = 'stable';
+            
+            if (last7Days.length > 0 && previous7Days.length > 0) {
+                const last7AvgSys = last7Days.reduce((s, m) => s + m.systolic, 0) / last7Days.length;
+                const prev7AvgSys = previous7Days.reduce((s, m) => s + m.systolic, 0) / previous7Days.length;
+                systolicTrend = last7AvgSys < prev7AvgSys ? 'down' : last7AvgSys > prev7AvgSys ? 'up' : 'stable';
+                
+                const last7AvgDia = last7Days.reduce((s, m) => s + m.diastolic, 0) / last7Days.length;
+                const prev7AvgDia = previous7Days.reduce((s, m) => s + m.diastolic, 0) / previous7Days.length;
+                diastolicTrend = last7AvgDia < prev7AvgDia ? 'down' : last7AvgDia > prev7AvgDia ? 'up' : 'stable';
+            }
+            
+            elements.quickStats.innerHTML = `
+                <div class="quick-stat">
+                    <div class="value" style="color: ${getStatusColor(status.class)}">${lastMeasurement.systolic}/${lastMeasurement.diastolic}</div>
+                    <div class="label">Letzte Messung</div>
+                </div>
+                <div class="quick-stat">
+                    <div class="value">${status.text}</div>
+                    <div class="label">Status</div>
+                </div>
+            `;
+        }
+        
+        function getStatusColor(status) {
+            const colors = {
+                'optimal': '#27ae60',
+                'normal': '#3498db',
+                'elevated': '#f39c12',
+                'hypertension1': '#e67e22',
+                'hypertension2': '#e74c3c',
+                'crisis': '#c0392b'
+            };
+            return colors[status] || '#3498db';
+        }
+        
+        function calculateInsights() {
+            if (measurements.length < 3) {
+                elements.insightsContent.innerHTML = `
+                    <p>Fügen Sie mehr Messungen hinzu, um intelligente Erkenntnisse zu erhalten.</p>
+                `;
+                return;
+            }
+            
+            const insights = [];
+            
+            // Tageszeit-Analyse
+            const morningReadings = measurements.filter(m => {
+                const hour = parseInt(m.time.split(':')[0]);
+                return hour >= 6 && hour < 12;
+            });
+            
+            const eveningReadings = measurements.filter(m => {
+                const hour = parseInt(m.time.split(':')[0]);
+                return hour >= 16 && hour < 22;
+            });
+            
+            if (morningReadings.length > 0 && eveningReadings.length > 0) {
+                const morningAvg = morningReadings.reduce((sum, m) => sum + m.systolic, 0) / morningReadings.length;
+                const eveningAvg = eveningReadings.reduce((sum, m) => sum + m.systolic, 0) / eveningReadings.length;
+                
+                if (morningAvg > eveningAvg + 10) {
+                    insights.push("Ihr Blutdruck ist morgens tendenziell höher als abends.");
+                } else if (eveningAvg > morningAvg + 10) {
+                    insights.push("Ihr Blutdruck ist abends tendenziell höher als morgens.");
                 }
-
-                device = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: "BrotThermometer-TTGO" }],
-                    optionalServices: [SERVICE_UUID]
+            }
+            
+            // Wochenend vs Wochentag
+            const weekdayReadings = measurements.filter(m => {
+                const date = new Date(m.timestamp);
+                return date.getDay() >= 1 && date.getDay() <= 5;
+            });
+            
+            const weekendReadings = measurements.filter(m => {
+                const date = new Date(m.timestamp);
+                return date.getDay() === 0 || date.getDay() === 6;
+            });
+            
+            if (weekdayReadings.length > 0 && weekendReadings.length > 0) {
+                const weekdayAvg = weekdayReadings.reduce((sum, m) => sum + m.systolic, 0) / weekdayReadings.length;
+                const weekendAvg = weekendReadings.reduce((sum, m) => sum + m.systolic, 0) / weekendReadings.length;
+                
+                if (weekdayAvg > weekendAvg + 5) {
+                    insights.push("An Werktagen haben Sie tendenziell höhere Werte als am Wochenende.");
+                }
+            }
+            
+            // Trend-Analyse
+            const recentReadings = measurements.slice(0, 7);
+            if (recentReadings.length >= 5) {
+                const recentAvg = recentReadings.reduce((sum, m) => sum + m.systolic, 0) / recentReadings.length;
+                const allAvg = measurements.reduce((sum, m) => sum + m.systolic, 0) / measurements.length;
+                
+                if (recentAvg < allAvg - 5) {
+                    insights.push("Positive Entwicklung: Ihre letzten Werte sind besser als der Durchschnitt!");
+                } else if (recentAvg > allAvg + 5) {
+                    insights.push("Achtung: Ihre letzten Werte sind höher als Ihr Durchschnitt.");
+                }
+            }
+            
+            // Puls-Blutdruck-Korrelation
+            const highBpReadings = measurements.filter(m => m.systolic > 140 || m.diastolic > 90);
+            if (highBpReadings.length > 0) {
+                const highBpPulse = highBpReadings.reduce((sum, m) => sum + m.pulse, 0) / highBpReadings.length;
+                const normalBpReadings = measurements.filter(m => m.systolic <= 140 && m.diastolic <= 90);
+                const normalBpPulse = normalBpReadings.length > 0 ? 
+                    normalBpReadings.reduce((sum, m) => sum + m.pulse, 0) / normalBpReadings.length : 0;
+                
+                if (highBpPulse > normalBpPulse + 10) {
+                    insights.push("Bei erhöhtem Blutdruck ist Ihr Puls oft ebenfalls erhöht.");
+                }
+            }
+            
+            if (insights.length === 0) {
+                insights.push("Ihre Blutdruckwerte sind relativ stabil. Weiter so!");
+            }
+            
+            elements.insightsContent.innerHTML = insights
+                .map(insight => `<div class="insight-item">${insight}</div>`)
+                .join('');
+        }
+        
+        function showInsights() {
+            calculateInsights();
+            switchTab('dashboard');
+            
+            // Scroll zu Insights
+            setTimeout(() => {
+                document.getElementById('insightsCard').scrollIntoView({ 
+                    behavior: 'smooth' 
+                });
+            }, 100);
+        }
+        
+        // ==============================================
+        // DRUCKFUNKTIONEN
+        // ==============================================
+        
+        function showPrintModal(option) {
+            if (measurements.length === 0) {
+                showToast('Keine Daten zum Drucken', 'warning');
+                return;
+            }
+            
+            if (!patientInfo.name) {
+                showToast('Bitte zuerst Patienteninformationen eingeben', 'warning');
+                switchTab('dashboard');
+                return;
+            }
+            
+            elements.printModal.style.display = 'flex';
+            
+            if (option === 'detailed') {
+                elements.printOptions.forEach(opt => {
+                    if (opt.getAttribute('data-option') === 'detailed') {
+                        elements.printOptions.forEach(o => o.classList.remove('selected'));
+                        opt.classList.add('selected');
+                        elements.customOptions.style.display = 'none';
+                    }
+                });
+            }
+        }
+        
+        function hidePrintModal() {
+            elements.printModal.style.display = 'none';
+        }
+        
+        function confirmPrint() {
+            const selectedOption = document.querySelector('.print-option.selected');
+            const optionType = selectedOption.getAttribute('data-option');
+            
+            hidePrintModal();
+            
+            // Temporäre Änderungen für den Druck
+            const originalTitle = document.title;
+            document.title = `Blutdruck-Report ${patientInfo.name} - ${new Date().toLocaleDateString('de-DE')}`;
+            
+            // Ausblenden von nicht druckrelevanten Elementen
+            const noPrintElements = document.querySelectorAll('.no-print, .btn, .tabs, .footer, .patient-form');
+            noPrintElements.forEach(el => {
+                el.dataset.originalDisplay = el.style.display;
+                el.style.display = 'none';
+            });
+            
+            // Je nach Option verschiedene Elemente anzeigen/ausblenden
+            if (optionType === 'simple') {
+                // Nur einfache Liste
+                document.querySelector('.print-header').style.display = 'block';
+                document.querySelector('.patient-info').style.display = 'block';
+                document.querySelector('.print-footer').style.display = 'block';
+                
+                // Diagramme ausblenden
+                document.querySelectorAll('.chart-container').forEach(el => {
+                    el.dataset.originalDisplay = el.style.display;
+                    el.style.display = 'none';
+                });
+                document.querySelectorAll('.card-title').forEach(title => {
+                    if (title.textContent.includes('Diagramm') || title.textContent.includes('Verlauf') || title.textContent.includes('Analyse')) {
+                        title.parentElement.style.display = 'none';
+                    }
+                });
+            } else if (optionType === 'detailed') {
+                // Kompletter Bericht
+                document.querySelector('.print-header').style.display = 'block';
+                document.querySelector('.patient-info').style.display = 'block';
+                document.querySelector('.print-footer').style.display = 'block';
+                
+                // Alle Elemente anzeigen
+                document.querySelectorAll('.chart-container, .card-title').forEach(el => {
+                    el.style.display = '';
+                });
+            } else if (optionType === 'custom') {
+                // Benutzerdefiniert
+                document.querySelector('.print-header').style.display = 'block';
+                
+                // Patienteninfo anzeigen/ausblenden
+                if (elements.optPatientInfo.checked) {
+                    document.querySelector('.patient-info').style.display = 'block';
+                }
+                
+                // Diagramme anzeigen/ausblenden
+                document.querySelectorAll('.chart-container').forEach(el => {
+                    el.style.display = elements.optCharts.checked ? '' : 'none';
                 });
                 
-                log(`Gerät gefunden: ${device.name}`);
-                log('Stelle Verbindung her...');
+                // Statistiken anzeigen/ausblenden
+                document.querySelectorAll('.stats-grid, .stat-card').forEach(el => {
+                    el.style.display = elements.optStats.checked ? '' : 'none';
+                });
                 
-                server = await device.gatt.connect();
-                log('Verbunden mit GATT Server');
+                // Messungen filtern nach Zeitraum
+                if (elements.printStartDate.value && elements.printEndDate.value) {
+                    const startDate = new Date(elements.printStartDate.value).getTime();
+                    const endDate = new Date(elements.printEndDate.value).getTime() + 86400000; // +1 Tag
+                    
+                    document.querySelectorAll('.measurement-card').forEach(card => {
+                        const dateText = card.querySelector('.measurement-date').textContent;
+                        // Einfache Filterung - in einer realen App würde man hier das tatsächliche Datum parsen
+                        card.style.display = ''; // Alle anzeigen für dieses Beispiel
+                    });
+                }
                 
-                service = await server.getPrimaryService(SERVICE_UUID);
-                log('Service gefunden');
-                
-                // Setup Temperature Characteristic
-                log('Hole Temperature Characteristic...');
-                temperatureCharacteristic = await service.getCharacteristic(TEMPERATURE_UUID);
-                log('Temperature Characteristic gefunden');
-                
-                // Aktiviere Notifications
-                await temperatureCharacteristic.startNotifications();
-                temperatureCharacteristic.addEventListener('characteristicvaluechanged', handleTemperatureData);
-                log('Temperatur-Notifications aktiviert');
-                
-                // Update UI
-                isConnected = true;
-                connectionStatus.textContent = 'Verbunden mit BrotThermometer';
-                connectionStatus.className = 'connection-status connected';
-                connectButton.textContent = '✅ Verbunden';
-                startButton.disabled = false;
-                
-                log('Verbindung erfolgreich! Warte auf Temperaturdaten...');
-                
-                // Lese ersten Wert
-                const initialValue = await temperatureCharacteristic.readValue();
-                handleTemperatureData({ target: { value: initialValue } });
-                
-                // Handle disconnection
-                device.addEventListener('gattserverdisconnected', onDisconnected);
-                
-            } catch (error) {
-                log(`FEHLER: ${error.message}`);
-                console.error('BLE Fehler:', error);
-                resetConnection();
+                document.querySelector('.print-footer').style.display = 'block';
             }
-        }
-
-        function onDisconnected() {
-            log('Verbindung verloren');
-            resetConnection();
-        }
-
-        function resetConnection() {
-            isConnected = false;
-            device = null;
-            server = null;
-            service = null;
-            temperatureCharacteristic = null;
             
-            connectionStatus.textContent = 'Nicht verbunden';
-            connectionStatus.className = 'connection-status disconnected';
-            connectButton.textContent = '🔗 Mit Thermometer verbinden';
-            connectButton.disabled = false;
-            startButton.disabled = true;
-            stopButton.disabled = true;
-            
-            temperatureElement.textContent = '--.-°C';
-            statusElement.textContent = 'Bereit';
-            progressFill.style.width = '0%';
+            // Kurz warten und dann drucken
+            setTimeout(() => {
+                window.print();
+                
+                // Zurücksetzen nach dem Druck
+                setTimeout(() => {
+                    document.title = originalTitle;
+                    
+                    // Alle Elemente wieder anzeigen
+                    document.querySelector('.print-header').style.display = 'none';
+                    document.querySelector('.patient-info').style.display = 'none';
+                    document.querySelector('.print-footer').style.display = 'none';
+                    
+                    noPrintElements.forEach(el => {
+                        el.style.display = el.dataset.originalDisplay || '';
+                    });
+                    
+                    document.querySelectorAll('.chart-container, .card-title, .stats-grid, .stat-card, .measurement-card').forEach(el => {
+                        el.style.display = '';
+                    });
+                }, 100);
+            }, 500);
         }
-
-        function handleTemperatureData(event) {
-            try {
-                const value = event.target.value;
-                const text = new TextDecoder().decode(value);
+        
+        // ==============================================
+        // EXPORT & IMPORT
+        // ==============================================
+        
+        function exportData() {
+            if (measurements.length === 0) {
+                showToast('Keine Daten zum Exportieren', 'warning');
+                return;
+            }
+            
+            const dataStr = JSON.stringify({
+                version: APP_VERSION,
+                exportDate: new Date().toISOString(),
+                patientInfo: patientInfo,
+                measurements: measurements,
+                settings: settings
+            }, null, 2);
+            
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `blutdruck-backup-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showToast('Daten erfolgreich exportiert', 'success');
+        }
+        
+        function exportToExcel() {
+            if (measurements.length === 0) {
+                showToast('Keine Daten für Excel-Export', 'warning');
+                return;
+            }
+            
+            // CSV-Format erstellen
+            let csv = 'Datum;Uhrzeit;Systolisch;Diastolisch;Puls;Notiz;Status\n';
+            
+            measurements.forEach(m => {
+                const status = getBloodPressureStatus(m.systolic, m.diastolic);
+                csv += `${m.date};${m.time};${m.systolic};${m.diastolic};${m.pulse};"${m.note || ''}";${status.text}\n`;
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `blutdruck-export-${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showToast('Excel-Export erfolgreich', 'success');
+        }
+        
+        function createBackup() {
+            exportData();
+        }
+        
+        function restoreBackup() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            
+            input.onchange = function(e) {
+                const file = e.target.files[0];
+                const reader = new FileReader();
                 
-                log(`Daten empfangen: ${text}`);
-                
-                const parts = text.split(',');
-                if (parts.length >= 5) {
-                    const [temp, isBaking, isComplete, breadIndex, targetTemp] = parts;
-                    
-                    // Update Temperature Display
-                    temperatureElement.textContent = `${temp}°C`;
-                    
-                    // Update Progress and Status
-                    if (isComplete === '1') {
-                        statusElement.textContent = '🎉 BROT FERTIG!';
-                        progressFill.style.width = '100%';
-                        progressFill.style.background = 'linear-gradient(90deg, #4CAF50, #8BC34A)';
-                        stopButton.disabled = true;
-                        startButton.disabled = false;
-                    } else if (isBaking === '1') {
-                        const progress = (parseFloat(temp) / parseFloat(targetTemp)) * 100;
-                        const progressPercent = Math.min(progress, 100);
-                        progressFill.style.width = `${progressPercent}%`;
+                reader.onload = function(e) {
+                    try {
+                        const backup = JSON.parse(e.target.result);
                         
-                        if (progressPercent < 50) {
-                            progressFill.style.background = 'linear-gradient(90deg, #FF9800, #FFC107)';
-                        } else if (progressPercent < 80) {
-                            progressFill.style.background = 'linear-gradient(90deg, #FFC107, #CDDC39)';
-                        } else {
-                            progressFill.style.background = 'linear-gradient(90deg, #4CAF50, #8BC34A)';
+                        if (!backup.measurements || !Array.isArray(backup.measurements)) {
+                            throw new Error('Ungültiges Backup-Format');
                         }
                         
-                        statusElement.textContent = `Backend... ${progressPercent.toFixed(1)}%`;
-                        stopButton.disabled = false;
-                        startButton.disabled = true;
-                    } else {
-                        statusElement.textContent = 'Bereit';
-                        progressFill.style.width = '0%';
-                        stopButton.disabled = true;
-                        startButton.disabled = false;
+                        if (confirm(`${backup.measurements.length} Messungen importieren?`)) {
+                            measurements = backup.measurements;
+                            if (backup.patientInfo) {
+                                patientInfo = backup.patientInfo;
+                                localStorage.setItem('bpPatientInfo', JSON.stringify(patientInfo));
+                                loadPatientInfo();
+                            }
+                            if (backup.settings) {
+                                settings = backup.settings;
+                                localStorage.setItem('bpSettings', JSON.stringify(settings));
+                            }
+                            saveToLocalStorage();
+                            loadMeasurements();
+                            showToast('Backup erfolgreich wiederhergestellt', 'success');
+                        }
+                    } catch (error) {
+                        showToast('Fehler beim Import: ' + error.message, 'error');
+                    }
+                };
+                
+                reader.readAsText(file);
+            };
+            
+            input.click();
+        }
+        
+        function clearOldData() {
+            const sixMonthsAgo = new Date().getTime() - 180 * 24 * 60 * 60 * 1000;
+            const oldCount = measurements.filter(m => m.timestamp < sixMonthsAgo).length;
+            
+            if (oldCount === 0) {
+                showToast('Keine alten Daten gefunden', 'info');
+                return;
+            }
+            
+            if (confirm(`${oldCount} Messungen älter als 6 Monate löschen?`)) {
+                measurements = measurements.filter(m => m.timestamp >= sixMonthsAgo);
+                saveToLocalStorage();
+                loadMeasurements();
+                showToast(`${oldCount} alte Messungen gelöscht`, 'success');
+            }
+        }
+        
+        function resetAllData() {
+            if (confirm('ALLE Daten zurücksetzen? Dies kann nicht rückgängig gemacht werden!')) {
+                measurements = [];
+                patientInfo = {
+                    name: '',
+                    birthdate: '',
+                    height: '',
+                    weight: '',
+                    medication: '',
+                    notes: ''
+                };
+                localStorage.removeItem('bpMeasurements');
+                localStorage.removeItem('bpPatientInfo');
+                loadPatientInfo();
+                loadMeasurements();
+                showToast('Alle Daten wurden gelöscht', 'success');
+            }
+        }
+        
+        // ==============================================
+        // EINSTELLUNGEN
+        // ==============================================
+        
+        function showSettingsModal() {
+            // Aktuelle Werte laden
+            elements.reminderMorning.checked = settings.reminders?.morning || true;
+            elements.reminderEvening.checked = settings.reminders?.evening || true;
+            elements.printPatientInfo.checked = settings.printSettings?.patientInfo || true;
+            elements.printDiagrams.checked = settings.printSettings?.diagrams || true;
+            
+            elements.settingsModal.style.display = 'flex';
+        }
+        
+        function hideSettingsModal() {
+            elements.settingsModal.style.display = 'none';
+        }
+        
+        function saveSettings() {
+            settings = {
+                reminders: {
+                    morning: elements.reminderMorning.checked,
+                    evening: elements.reminderEvening.checked
+                },
+                printSettings: {
+                    patientInfo: elements.printPatientInfo.checked,
+                    diagrams: elements.printDiagrams.checked
+                }
+            };
+            
+            localStorage.setItem('bpSettings', JSON.stringify(settings));
+            hideSettingsModal();
+            showToast('Einstellungen gespeichert', 'success');
+        }
+        
+        function showCloudBackup() {
+            showToast('Cloud-Funktion erfordert Anmeldung', 'info');
+        }
+        
+        // ==============================================
+        // HILFSFUNKTIONEN
+        // ==============================================
+        
+        function getBloodPressureStatus(systolic, diastolic) {
+            if (systolic < 120 && diastolic < 80) {
+                return { class: 'optimal', text: 'Optimal' };
+            } else if (systolic < 130 && diastolic < 85) {
+                return { class: 'normal', text: 'Normal' };
+            } else if (systolic < 140 && diastolic < 90) {
+                return { class: 'elevated', text: 'Hochnormal' };
+            } else if (systolic < 160 && diastolic < 100) {
+                return { class: 'hypertension1', text: 'Hypertonie Grad 1' };
+            } else if (systolic < 180 && diastolic < 110) {
+                return { class: 'hypertension2', text: 'Hypertonie Grad 2' };
+            } else {
+                return { class: 'crisis', text: 'Hypertensive Krise' };
+            }
+        }
+        
+        function formatDate(dateString) {
+            const options = { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' };
+            const date = new Date(dateString);
+            return date.toLocaleDateString('de-DE', options);
+        }
+        
+        function deleteMeasurement(id) {
+            if (confirm('Möchten Sie diese Messung wirklich löschen?')) {
+                measurements = measurements.filter(m => m.id !== id);
+                saveToLocalStorage();
+                loadMeasurements();
+                showToast('Messung gelöscht', 'success');
+            }
+        }
+        
+        function switchTab(tabId) {
+            // Tabs aktualisieren
+            elements.tabs.forEach(tab => {
+                if (tab.getAttribute('data-tab') === tabId) {
+                    tab.classList.add('active');
+                } else {
+                    tab.classList.remove('active');
+                }
+            });
+            
+            // Tab-Inhalte aktualisieren
+            elements.tabContents.forEach(content => {
+                if (content.id === tabId) {
+                    content.classList.add('active');
+                } else {
+                    content.classList.remove('active');
+                }
+            });
+            
+            // Charts aktualisieren, wenn Analyse-Tab angezeigt wird
+            if (tabId === 'analysis') {
+                setTimeout(() => {
+                    updateCharts();
+                }, 300);
+            }
+        }
+        
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            const icons = {
+                success: 'fas fa-check-circle',
+                error: 'fas fa-exclamation-circle',
+                warning: 'fas fa-exclamation-triangle',
+                info: 'fas fa-info-circle'
+            };
+            
+            toast.innerHTML = `
+                <i class="${icons[type] || 'fas fa-info-circle'}" style="font-size: 1.5rem;"></i>
+                <div>
+                    <strong>${message}</strong>
+                </div>
+            `;
+            
+            document.getElementById('toastContainer').appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+        
+        function registerServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js').catch(err => {
+                    console.log('Service Worker Registration failed:', err);
+                });
+            }
+        }
+        
+        // ==============================================
+        // DIAGRAMME
+        // ==============================================
+        
+        function updateCharts() {
+            if (measurements.length === 0) {
+                destroyCharts();
+                return;
+            }
+            
+            updateTrendChart();
+            updateBloodPressureChart();
+            updatePulseChart();
+            updateDistributionChart();
+            updateTimeChart();
+        }
+        
+        function destroyCharts() {
+            if (trendChart) trendChart.destroy();
+            if (bpChart) bpChart.destroy();
+            if (pulseChart) pulseChart.destroy();
+            if (distributionChart) distributionChart.destroy();
+            if (timeChart) timeChart.destroy();
+        }
+        
+        function updateTrendChart() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            if (trendChart) trendChart.destroy();
+            
+            // Letzte 14 Tage
+            const twoWeeksAgo = new Date().getTime() - 14 * 24 * 60 * 60 * 1000;
+            const recentMeasurements = measurements
+                .filter(m => m.timestamp >= twoWeeksAgo)
+                .sort((a, b) => a.timestamp - b.timestamp);
+            
+            const labels = recentMeasurements.map(m => {
+                const date = new Date(m.timestamp);
+                return `${date.getDate()}.${date.getMonth()+1}.`;
+            });
+            
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Systolisch',
+                            data: recentMeasurements.map(m => m.systolic),
+                            borderColor: '#e74c3c',
+                            backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                            borderWidth: 3,
+                            tension: 0.3,
+                            fill: true
+                        },
+                        {
+                            label: 'Diastolisch',
+                            data: recentMeasurements.map(m => m.diastolic),
+                            borderColor: '#3498db',
+                            backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                            borderWidth: 3,
+                            tension: 0.3,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                font: {
+                                    size: 12,
+                                    family: 'Inter'
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'mmHg',
+                                font: {
+                                    size: 12,
+                                    family: 'Inter'
+                                }
+                            }
+                        }
                     }
                 }
-            } catch (error) {
-                log(`Fehler beim Verarbeiten der Daten: ${error.message}`);
-            }
+            });
         }
-
-        async function startBaking() {
-            if (!isConnected) {
-                log('Nicht verbunden - kann nicht starten');
-                return;
-            }
-            
-            const breadIndex = breadSelect.value;
-            await sendCommand(`START:${breadIndex}`);
-            log(`Backen gestartet: Brot ${breadIndex}`);
-        }
-
-        async function stopBaking() {
-            if (!isConnected) {
-                log('Nicht verbunden - kann nicht stoppen');
-                return;
-            }
-            
-            await sendCommand('STOP');
-            log('Backen gestoppt');
-        }
-
-        async function sendCommand(command) {
-            if (!service) {
-                log('FEHLER: Nicht verbunden');
-                return;
-            }
-            
-            try {
-                const characteristic = await service.getCharacteristic(SETTINGS_UUID);
-                await characteristic.writeValue(new TextEncoder().encode(command));
-                log(`Befehl gesendet: ${command}`);
-            } catch (error) {
-                log(`FEHLER beim Senden: ${error.message}`);
-            }
-        }
-
-        // Initial UI State
-        startButton.disabled = true;
-        stopButton.disabled = true;
         
-        log('BrotThermometer PWA gestartet');
-        log('Stelle sicher dass der ESP32 mit dem neuen Code geflasht wurde!');
+        function updateBloodPressureChart() {
+            const ctx = document.getElementById('bpChart').getContext('2d');
+            if (bpChart) bpChart.destroy();
+            
+            // Letzte 30 Tage
+            const sortedMeasurements = [...measurements]
+                .sort((a, b) => a.timestamp - b.timestamp)
+                .slice(-30);
+            
+            const labels = sortedMeasurements.map(m => {
+                const date = new Date(m.timestamp);
+                return `${date.getDate()}.${date.getMonth()+1}.`;
+            });
+            
+            bpChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Systolisch',
+                            data: sortedMeasurements.map(m => m.systolic),
+                            borderColor: '#e74c3c',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            tension: 0.2
+                        },
+                        {
+                            label: 'Diastolisch',
+                            data: sortedMeasurements.map(m => m.diastolic),
+                            borderColor: '#3498db',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            tension: 0.2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updatePulseChart() {
+            const ctx = document.getElementById('pulseChart').getContext('2d');
+            if (pulseChart) pulseChart.destroy();
+            
+            const sortedMeasurements = [...measurements]
+                .sort((a, b) => a.timestamp - b.timestamp)
+                .slice(-30);
+            
+            const labels = sortedMeasurements.map(m => {
+                const date = new Date(m.timestamp);
+                return `${date.getDate()}.${date.getMonth()+1}.`;
+            });
+            
+            pulseChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Puls',
+                        data: sortedMeasurements.map(m => m.pulse),
+                        backgroundColor: 'rgba(46, 204, 113, 0.6)',
+                        borderColor: 'rgba(46, 204, 113, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateDistributionChart() {
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+            if (distributionChart) distributionChart.destroy();
+            
+            const statusCounts = {
+                optimal: 0,
+                normal: 0,
+                elevated: 0,
+                hypertension1: 0,
+                hypertension2: 0,
+                crisis: 0
+            };
+            
+            measurements.forEach(m => {
+                const status = getBloodPressureStatus(m.systolic, m.diastolic).class;
+                statusCounts[status] = (statusCounts[status] || 0) + 1;
+            });
+            
+            distributionChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Optimal', 'Normal', 'Hochnormal', 'Hypertonie 1', 'Hypertonie 2', 'Krise'],
+                    datasets: [{
+                        data: Object.values(statusCounts),
+                        backgroundColor: [
+                            '#27ae60',
+                            '#3498db',
+                            '#f39c12',
+                            '#e67e22',
+                            '#e74c3c',
+                            '#c0392b'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateTimeChart() {
+            const ctx = document.getElementById('timeChart').getContext('2d');
+            if (timeChart) timeChart.destroy();
+            
+            const timeSlots = {
+                '06-10': 0,
+                '10-14': 0,
+                '14-18': 0,
+                '18-22': 0,
+                '22-06': 0
+            };
+            
+            measurements.forEach(m => {
+                const hour = parseInt(m.time.split(':')[0]);
+                let slot;
+                
+                if (hour >= 6 && hour < 10) slot = '06-10';
+                else if (hour >= 10 && hour < 14) slot = '10-14';
+                else if (hour >= 14 && hour < 18) slot = '14-18';
+                else if (hour >= 18 && hour < 22) slot = '18-22';
+                else slot = '22-06';
+                
+                timeSlots[slot]++;
+            });
+            
+            timeChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(timeSlots),
+                    datasets: [{
+                        label: 'Anzahl Messungen',
+                        data: Object.values(timeSlots),
+                        backgroundColor: 'rgba(155, 89, 182, 0.6)',
+                        borderColor: 'rgba(155, 89, 182, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        // ==============================================
+        // APP START
+        // ==============================================
+        
+        document.addEventListener('DOMContentLoaded', init);
+        
+        // PWA Manifest
+        const manifest = {
+            "name": "Blutdruck Tracker Pro",
+            "short_name": "Blutdruck Pro",
+            "description": "Professionelle Blutdrucküberwachung",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#2c3e50",
+            "theme_color": "#3498db",
+            "orientation": "portrait",
+            "icons": [
+                {
+                    "src": "icon-192.png",
+                    "sizes": "192x192",
+                    "type": "image/png"
+                },
+                {
+                    "src": "icon-512.png",
+                    "sizes": "512x512",
+                    "type": "image/png"
+                }
+            ]
+        };
+        
+        // Manifest hinzufügen
+        const manifestBlob = new Blob([JSON.stringify(manifest, null, 2)], {type: 'application/json'});
+        const manifestURL = URL.createObjectURL(manifestBlob);
+        
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = manifestURL;
+        document.head.appendChild(link);
     </script>
 </body>
 </html>
